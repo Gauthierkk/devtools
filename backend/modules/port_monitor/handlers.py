@@ -1,6 +1,8 @@
 """Port monitor — lists listening ports using lsof (macOS/Linux)."""
 
+import os
 import re
+import signal
 import subprocess
 
 from rpc import RpcServer
@@ -8,6 +10,7 @@ from rpc import RpcServer
 
 def register(server: RpcServer):
     server.add("port_monitor.get_ports", get_ports)
+    server.add("port_monitor.kill_process", kill_process)
 
 
 def _parse_lsof() -> list[dict]:
@@ -67,3 +70,14 @@ def _parse_lsof() -> list[dict]:
 def get_ports() -> dict:
     """Return all listening TCP ports with process info."""
     return {"ports": _parse_lsof()}
+
+
+def kill_process(pid: int) -> dict:
+    """Kill a process by PID. Sends SIGTERM first, SIGKILL if needed."""
+    try:
+        os.kill(pid, signal.SIGTERM)
+        return {"ok": True}
+    except ProcessLookupError:
+        return {"ok": True}  # already dead
+    except PermissionError:
+        raise Exception(f"Permission denied — cannot kill PID {pid}")

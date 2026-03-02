@@ -13,3 +13,7 @@ export async function fetchPorts(): Promise<PortEntry[]> {
     throw err;
   }
 }
+
+export async function killProcess(pid: number): Promise<void> {
+  await rpcCall<{ ok: boolean }>("port_monitor.kill_process", { pid });
+}
