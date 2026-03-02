@@ -1,0 +1,32 @@
+[data-theme="tokyo-night"] {
+  --bg-primary: #1a1b26;
+  --bg-surface: #24283b;
+  --bg-surface-hover: #2a2e42;
+  --bg-surface-active: #32364a;
+  --text-primary: #c0caf5;
+  --text-secondary: #7982a9;
+  --text-tertiary: #565f89;
+  --border: rgba(192, 202, 245, 0.08);
+  --border-strong: rgba(192, 202, 245, 0.14);
+  --accent: #7aa2f7;
+  --accent-hover: #89aff7;
+  --accent-text: #1a1b26;
+  --danger: #f7768e;
+  --success: #9ece6a;
+  --warning: #ff9e64;
+
+  /* Syntax highlighting */
+  --syntax-string: #9ece6a;
+  --syntax-number: #ff9e64;
+  --syntax-boolean: #ff9e64;
+  --syntax-null: #565f89;
+  --syntax-key: #7aa2f7;
+  --syntax-bracket: #7982a9;
+
+  /* Editor */
+  --editor-bg: #1a1b26;
+  --editor-gutter: #1f2133;
+  --editor-line-highlight: rgba(192, 202, 245, 0.03);
+  --editor-cursor: #c0caf5;
+  --editor-selection: rgba(122, 162, 247, 0.2);
+}
