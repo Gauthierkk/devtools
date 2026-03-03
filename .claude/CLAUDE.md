@@ -29,6 +29,10 @@ Modular macOS-first desktop app: Tauri v2 (Rust shell) + React/TypeScript fronte
 
 - **Offline-first**: The app must run entirely locally and work with no internet connection. No external API calls, no CDN-loaded assets, no cloud dependencies at runtime. All data processing happens on-device.
 
+## Git Workflow
+
+- **Always create a new branch before starting a new feature**: `git checkout -b feature/<short-description>` from an up-to-date `main`. Never implement new features directly on `main`.
+
 ## Conventions
 
 - Use `uv` for Python package management
