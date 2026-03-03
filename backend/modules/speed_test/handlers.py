@@ -1,87 +1,84 @@
-"""Speed test — measures network latency, download speed, and disk I/O throughput."""
+"""Speed test — measures network latency, download speed, and upload speed."""
 
+import concurrent.futures
 import os
 import socket
-import statistics
-import tempfile
 import time
 import urllib.error
 import urllib.request
 
 from rpc import RpcServer
 
-# Cloudflare's public speed test endpoint (designed for this use)
-_DOWNLOAD_URL = "https://speed.cloudflare.com/__down?bytes=25000000"
-
 # Well-known hosts for latency measurement (TCP connect to port 80)
 _LATENCY_TARGETS = [
-    ("1.1.1.1", 80),   # Cloudflare DNS
-    ("8.8.8.8", 80),   # Google DNS
-    ("9.9.9.9", 80),   # Quad9 DNS
+    ("1.1.1.1", 80, "Cloudflare"),
+    ("8.8.8.8", 80, "Google"),
+    ("9.9.9.9", 80, "Quad9"),
 ]
-
-_DISK_TEST_SIZE_MB = 100
 
 
 def register(server: RpcServer) -> None:
-    server.add("speed_test.run_ping", run_ping)
-    server.add("speed_test.run_download", run_download)
-    server.add("speed_test.run_disk_write", run_disk_write)
-    server.add("speed_test.run_disk_read", run_disk_read)
+    server.add("speed_test.run_ping_batch", run_ping_batch)
+    server.add("speed_test.run_download_chunk", run_download_chunk)
+    server.add("speed_test.run_upload_chunk", run_upload_chunk)
 
 
-def run_ping() -> dict:
-    """Measure network round-trip latency via TCP connect to DNS resolvers."""
-    samples: list[float] = []
+def run_ping_batch(n_samples: int = 6) -> dict:
+    """Ping all targets in parallel using threads. Fast — completes in ~one RTT."""
 
-    for host, port in _LATENCY_TARGETS:
-        for _ in range(3):
-            try:
-                t0 = time.perf_counter()
-                with socket.create_connection((host, port), timeout=3):
-                    pass
-                samples.append((time.perf_counter() - t0) * 1000)
-            except OSError:
+    def ping_one(host: str, port: int, provider: str) -> dict:
+        try:
+            t0 = time.perf_counter()
+            with socket.create_connection((host, port), timeout=1.0):
                 pass
+            return {"latency_ms": round((time.perf_counter() - t0) * 1000, 1), "provider": provider, "ok": True}
+        except OSError:
+            return {"ok": False}
 
-    if not samples:
-        raise RuntimeError(
-            "Could not reach any network host — check internet connection"
-        )
+    tasks = [_LATENCY_TARGETS[i % len(_LATENCY_TARGETS)] for i in range(n_samples)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(tasks)) as ex:
+        results = list(ex.map(lambda t: ping_one(*t), tasks))
+
+    good = [r for r in results if r["ok"]]
+    if not good:
+        raise RuntimeError("Could not reach any network host — check internet connection")
+
+    latencies = sorted(r["latency_ms"] for r in good)
+    providers = sorted({r["provider"] for r in good})
+    median = latencies[len(latencies) // 2]
 
     return {
-        "latency_ms": round(statistics.median(samples), 1),
-        "min_ms": round(min(samples), 1),
-        "max_ms": round(max(samples), 1),
-        "samples": len(samples),
+        "latency_ms": median,
+        "min_ms": latencies[0],
+        "max_ms": latencies[-1],
+        "providers": providers,
+        "samples": len(latencies),
     }
 
 
-def run_download() -> dict:
-    """Measure download throughput by fetching from Cloudflare's speed-test CDN."""
-    chunk_size = 65_536  # 64 KB
+def run_download_chunk(bytes_to_fetch: int = 6_000_000) -> dict:
+    """Download `bytes_to_fetch` bytes from Cloudflare and return speed for this chunk."""
+    url = f"https://speed.cloudflare.com/__down?bytes={bytes_to_fetch}"
+    read_size = 65_536  # 64 KB
     total_bytes = 0
 
     try:
-        req = urllib.request.Request(
-            _DOWNLOAD_URL,
-            headers={"User-Agent": "devtools-speed-test/1.0"},
-        )
+        req = urllib.request.Request(url, headers={"User-Agent": "devtools-speed-test/1.0"})
         t0 = time.perf_counter()
         with urllib.request.urlopen(req, timeout=30) as resp:
             while True:
-                chunk = resp.read(chunk_size)
+                chunk = resp.read(read_size)
                 if not chunk:
                     break
                 total_bytes += len(chunk)
         elapsed = time.perf_counter() - t0
     except urllib.error.URLError as exc:
-        raise RuntimeError(f"Download test failed: {exc.reason}") from exc
+        raise RuntimeError(f"Download failed: {exc.reason}") from exc
     except OSError as exc:
-        raise RuntimeError(f"Download test failed: {exc}") from exc
+        raise RuntimeError(f"Download failed: {exc}") from exc
 
     if elapsed < 0.01:
-        raise RuntimeError("Download completed too quickly to produce a reliable result")
+        raise RuntimeError("Download completed too quickly to be reliable")
 
     speed_mbps = (total_bytes * 8) / (elapsed * 1_000_000)
     return {
@@ -91,67 +88,37 @@ def run_download() -> dict:
     }
 
 
-def run_disk_write(size_mb: int = _DISK_TEST_SIZE_MB) -> dict:
-    """Write a temporary file to measure sequential disk write throughput."""
-    size_bytes = size_mb * 1024 * 1024
-    block = os.urandom(1024 * 1024)  # 1 MB random block to avoid compression tricks
-
-    fd, temp_path = tempfile.mkstemp(suffix=".speedtest")
-    try:
-        os.close(fd)
-        t0 = time.perf_counter()
-        with open(temp_path, "wb") as f:
-            bytes_written = 0
-            while bytes_written < size_bytes:
-                f.write(block)
-                bytes_written += len(block)
-            f.flush()
-            os.fsync(f.fileno())
-        elapsed = time.perf_counter() - t0
-    except OSError as exc:
-        try:
-            os.unlink(temp_path)
-        except OSError:
-            pass
-        raise RuntimeError(f"Disk write test failed: {exc}") from exc
-
-    speed_mbs = (size_bytes / (1024 * 1024)) / elapsed
-    return {
-        "speed_mbs": round(speed_mbs, 1),
-        "temp_path": temp_path,
-        "size_mb": size_mb,
-        "duration_s": round(elapsed, 2),
-    }
-
-
-def run_disk_read(temp_path: str) -> dict:
-    """Read the temp file written by run_disk_write and report read throughput."""
-    chunk_size = 1024 * 1024  # 1 MB chunks
-    total_bytes = 0
+def run_upload_chunk(bytes_to_send: int = 6_000_000) -> dict:
+    """Upload random data to Cloudflare and return upload speed for this chunk."""
+    data = os.urandom(bytes_to_send)
+    url = "https://speed.cloudflare.com/__up"
 
     try:
+        req = urllib.request.Request(
+            url,
+            data=data,
+            method="POST",
+            headers={
+                "User-Agent": "devtools-speed-test/1.0",
+                "Content-Type": "application/octet-stream",
+                "Content-Length": str(len(data)),
+            },
+        )
         t0 = time.perf_counter()
-        with open(temp_path, "rb") as f:
-            while True:
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-                total_bytes += len(chunk)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            resp.read()
         elapsed = time.perf_counter() - t0
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Upload failed: {exc.reason}") from exc
     except OSError as exc:
-        raise RuntimeError(f"Disk read test failed: {exc}") from exc
-    finally:
-        try:
-            os.unlink(temp_path)
-        except OSError:
-            pass
+        raise RuntimeError(f"Upload failed: {exc}") from exc
 
-    if elapsed < 0.001:
-        elapsed = 0.001  # guard against division by zero on ultra-fast NVMe
+    if elapsed < 0.01:
+        raise RuntimeError("Upload completed too quickly to be reliable")
 
-    speed_mbs = (total_bytes / (1024 * 1024)) / elapsed
+    speed_mbps = (bytes_to_send * 8) / (elapsed * 1_000_000)
     return {
-        "speed_mbs": round(speed_mbs, 1),
-        "size_mb": round(total_bytes / (1024 * 1024), 1),
+        "speed_mbps": round(speed_mbps, 1),
+        "bytes_sent": bytes_to_send,
         "duration_s": round(elapsed, 2),
     }
