@@ -37,3 +37,12 @@ registerModule({
   route: "/ports",
   component: lazy(() => import("../modules/port-monitor/PortMonitor")),
 });
+
+// Register LaTeX Tool
+registerModule({
+  id: "latex-tool",
+  name: "LaTeX",
+  icon: "sigma",
+  route: "/latex",
+  component: lazy(() => import("../modules/latex-tool/LatexTool")),
+});
