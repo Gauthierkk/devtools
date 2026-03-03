@@ -1,31 +1,16 @@
 import { useCallback } from "react";
 import { useSpeedTestStore } from "./store";
-import { runPing, runDownload, runDiskWrite, runDiskRead } from "./commands";
+import { runPingBatch, runDownloadChunk, runUploadChunk } from "./commands";
 import MetricCard from "./components/MetricCard";
 
-// Gauge scale maximums (for 100% fill)
-const MAX_PING_MS = 200;
-const MAX_DOWNLOAD_MBPS = 1000;
-const MAX_DISK_MBS = 3000;
+// Gauge accent colors
+const COLOR_DOWNLOAD = "hsl(160, 65%, 50%)";  // teal-green
+const COLOR_UPLOAD = "hsl(250, 70%, 65%)";     // purple
 
-// Gauge accent colors (themed per metric type)
-const COLOR_PING = "hsl(250, 70%, 65%)";       // purple
-const COLOR_DOWNLOAD = "hsl(160, 65%, 50%)";    // teal-green
-const COLOR_DISK_WRITE = "hsl(30, 90%, 58%)";   // amber
-const COLOR_DISK_READ = "hsl(200, 80%, 55%)";   // sky blue
+const CHUNK_BYTES = 3_000_000; // smaller chunks = more frequent gauge updates
+const CHUNKS = 8;
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
-function PingIcon() {
-  return (
-    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 12.55a11 11 0 0 1 14.08 0" />
-      <path d="M1.42 9a16 16 0 0 1 21.16 0" />
-      <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-      <circle cx="12" cy="20" r="1" fill="currentColor" />
-    </svg>
-  );
-}
-
 function DownloadIcon() {
   return (
     <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -36,7 +21,7 @@ function DownloadIcon() {
   );
 }
 
-function WriteIcon() {
+function UploadIcon() {
   return (
     <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -46,37 +31,26 @@ function WriteIcon() {
   );
 }
 
-function ReadIcon() {
-  return (
-    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="8" y1="13" x2="16" y2="13" />
-      <line x1="8" y1="17" x2="16" y2="17" />
-    </svg>
-  );
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function SpeedTest() {
   const {
-    ping, download, diskWrite, diskRead,
+    ping, download, upload,
     isRunning,
-    updateMetric, setIsRunning, setDiskTempPath, reset,
+    updateMetric, setIsRunning, reset,
   } = useSpeedTestStore();
 
   const runTests = useCallback(async () => {
     reset();
     setIsRunning(true);
 
-    // 1. Ping
+    // 1. Ping — all targets in parallel, single fast call
     updateMetric("ping", { status: "running" });
     try {
-      const res = await runPing();
+      const res = await runPingBatch(6);
       updateMetric("ping", {
         status: "done",
         value: res.latency_ms,
-        subtitle: `min ${res.min_ms} ms · max ${res.max_ms} ms`,
+        subtitle: `via ${res.providers.join(", ")} · min ${res.min_ms} · max ${res.max_ms} ms`,
       });
     } catch (err) {
       updateMetric("ping", {
@@ -85,72 +59,83 @@ export default function SpeedTest() {
       });
     }
 
-    // 2. Download
+    // 2. Download — 8 chunks of 3MB, live-updating average speed
     updateMetric("download", { status: "running" });
-    try {
-      const res = await runDownload();
-      updateMetric("download", {
-        status: "done",
-        value: res.speed_mbps,
-        subtitle: `${(res.bytes_received / 1_000_000).toFixed(0)} MB in ${res.duration_s} s`,
-      });
-    } catch (err) {
-      updateMetric("download", {
-        status: "error",
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-
-    // 3. Disk write
-    let tempPath: string | null = null;
-    updateMetric("diskWrite", { status: "running" });
-    try {
-      const res = await runDiskWrite();
-      tempPath = res.temp_path;
-      setDiskTempPath(tempPath);
-      updateMetric("diskWrite", {
-        status: "done",
-        value: res.speed_mbs,
-        subtitle: `${res.size_mb} MB in ${res.duration_s} s`,
-      });
-    } catch (err) {
-      updateMetric("diskWrite", {
-        status: "error",
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-
-    // 4. Disk read
-    updateMetric("diskRead", { status: "running" });
-    if (tempPath) {
-      try {
-        const res = await runDiskRead(tempPath);
-        updateMetric("diskRead", {
+    {
+      let totalBytes = 0;
+      let totalDuration = 0;
+      for (let i = 0; i < CHUNKS; i++) {
+        try {
+          const res = await runDownloadChunk(CHUNK_BYTES);
+          totalBytes += res.bytes_received;
+          totalDuration += res.duration_s;
+          const avgSpeed = (totalBytes * 8) / (totalDuration * 1_000_000);
+          updateMetric("download", {
+            value: Math.round(avgSpeed * 10) / 10,
+            subtitle: `${(totalBytes / 1_000_000).toFixed(0)} / ${((CHUNKS * CHUNK_BYTES) / 1_000_000).toFixed(0)} MB`,
+          });
+        } catch (err) {
+          if (totalBytes === 0) {
+            updateMetric("download", {
+              status: "error",
+              error: err instanceof Error ? err.message : String(err),
+            });
+            break;
+          }
+        }
+      }
+      if (totalBytes > 0) {
+        const finalSpeed = (totalBytes * 8) / (totalDuration * 1_000_000);
+        updateMetric("download", {
           status: "done",
-          value: res.speed_mbs,
-          subtitle: `${res.size_mb} MB in ${res.duration_s} s`,
-        });
-      } catch (err) {
-        updateMetric("diskRead", {
-          status: "error",
-          error: err instanceof Error ? err.message : String(err),
+          value: Math.round(finalSpeed * 10) / 10,
+          subtitle: `avg over ${(totalBytes / 1_000_000).toFixed(0)} MB`,
         });
       }
-    } else {
-      updateMetric("diskRead", {
-        status: "error",
-        error: "Skipped — disk write test did not produce a file",
-      });
+    }
+
+    // 3. Upload — 8 chunks of 3MB, live-updating average speed
+    updateMetric("upload", { status: "running" });
+    {
+      let totalBytes = 0;
+      let totalDuration = 0;
+      for (let i = 0; i < CHUNKS; i++) {
+        try {
+          const res = await runUploadChunk(CHUNK_BYTES);
+          totalBytes += res.bytes_sent;
+          totalDuration += res.duration_s;
+          const avgSpeed = (totalBytes * 8) / (totalDuration * 1_000_000);
+          updateMetric("upload", {
+            value: Math.round(avgSpeed * 10) / 10,
+            subtitle: `${(totalBytes / 1_000_000).toFixed(0)} / ${((CHUNKS * CHUNK_BYTES) / 1_000_000).toFixed(0)} MB`,
+          });
+        } catch (err) {
+          if (totalBytes === 0) {
+            updateMetric("upload", {
+              status: "error",
+              error: err instanceof Error ? err.message : String(err),
+            });
+            break;
+          }
+        }
+      }
+      if (totalBytes > 0) {
+        const finalSpeed = (totalBytes * 8) / (totalDuration * 1_000_000);
+        updateMetric("upload", {
+          status: "done",
+          value: Math.round(finalSpeed * 10) / 10,
+          subtitle: `avg over ${(totalBytes / 1_000_000).toFixed(0)} MB`,
+        });
+      }
     }
 
     setIsRunning(false);
-  }, [reset, setIsRunning, setDiskTempPath, updateMetric]);
+  }, [reset, setIsRunning, updateMetric]);
 
   const hasAnyResult =
     ping.status !== "idle" ||
     download.status !== "idle" ||
-    diskWrite.status !== "idle" ||
-    diskRead.status !== "idle";
+    upload.status !== "idle";
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -163,19 +148,9 @@ export default function SpeedTest() {
 
       {/* Body */}
       <div className="flex flex-1 flex-col items-center justify-start overflow-y-auto px-6 py-6">
-        {/* Metric grid */}
+
+        {/* Gauges */}
         <div className="grid w-full max-w-2xl grid-cols-2 gap-4">
-          <MetricCard
-            label="Ping"
-            icon={<PingIcon />}
-            value={ping.value}
-            unit="ms"
-            subtitle={ping.subtitle}
-            status={ping.status}
-            error={ping.error}
-            maxValue={MAX_PING_MS}
-            color={COLOR_PING}
-          />
           <MetricCard
             label="Download"
             icon={<DownloadIcon />}
@@ -184,31 +159,58 @@ export default function SpeedTest() {
             subtitle={download.subtitle}
             status={download.status}
             error={download.error}
-            maxValue={MAX_DOWNLOAD_MBPS}
             color={COLOR_DOWNLOAD}
           />
           <MetricCard
-            label="Disk Write"
-            icon={<WriteIcon />}
-            value={diskWrite.value}
-            unit="MB/s"
-            subtitle={diskWrite.subtitle}
-            status={diskWrite.status}
-            error={diskWrite.error}
-            maxValue={MAX_DISK_MBS}
-            color={COLOR_DISK_WRITE}
+            label="Upload"
+            icon={<UploadIcon />}
+            value={upload.value}
+            unit="Mbps"
+            subtitle={upload.subtitle}
+            status={upload.status}
+            error={upload.error}
+            color={COLOR_UPLOAD}
           />
-          <MetricCard
-            label="Disk Read"
-            icon={<ReadIcon />}
-            value={diskRead.value}
-            unit="MB/s"
-            subtitle={diskRead.subtitle}
-            status={diskRead.status}
-            error={diskRead.error}
-            maxValue={MAX_DISK_MBS}
-            color={COLOR_DISK_READ}
-          />
+        </div>
+
+        {/* Ping — plain number row */}
+        <div className="mt-4 w-full max-w-2xl rounded-xl border border-border-default bg-bg-surface px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-text-tertiary">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                <circle cx="12" cy="20" r="1" fill="currentColor" />
+              </svg>
+              <span className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">Ping</span>
+              {ping.status === "running" && (
+                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+              )}
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              {ping.status === "idle" && (
+                <span className="text-lg font-semibold text-text-tertiary">—</span>
+              )}
+              {ping.status === "running" && (
+                <span className="text-sm text-text-tertiary animate-pulse">Testing…</span>
+              )}
+              {ping.status === "done" && ping.value != null && (
+                <>
+                  <span className="text-2xl font-bold text-text-primary">
+                    {ping.value % 1 === 0 ? ping.value : ping.value.toFixed(1)}
+                  </span>
+                  <span className="text-xs text-text-secondary">ms</span>
+                </>
+              )}
+              {ping.status === "error" && (
+                <span className="text-xs text-danger">{ping.error}</span>
+              )}
+            </div>
+          </div>
+          {ping.subtitle && ping.status === "done" && (
+            <p className="mt-1 text-right text-xs text-text-tertiary">{ping.subtitle}</p>
+          )}
         </div>
 
         {/* Action button */}
@@ -234,9 +236,8 @@ export default function SpeedTest() {
           )}
         </div>
 
-        {/* Note */}
         <p className="mt-4 text-xs text-text-tertiary">
-          Network tests require internet. Disk tests run locally.
+          Requires internet connection.
         </p>
       </div>
     </div>
