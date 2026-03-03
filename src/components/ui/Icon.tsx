@@ -125,6 +125,16 @@ const icons: Record<string, (size: number) => React.ReactNode> = {
       <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
     </svg>
   ),
+  grip: (s) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="9" cy="5" r="1.5" />
+      <circle cx="15" cy="5" r="1.5" />
+      <circle cx="9" cy="12" r="1.5" />
+      <circle cx="15" cy="12" r="1.5" />
+      <circle cx="9" cy="19" r="1.5" />
+      <circle cx="15" cy="19" r="1.5" />
+    </svg>
+  ),
 };
 
 export default function Icon({ name, size = 16, className = "" }: IconProps) {

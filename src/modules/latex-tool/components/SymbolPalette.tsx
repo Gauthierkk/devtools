@@ -2,6 +2,7 @@ import { useMemo, memo } from "react";
 import katex from "katex";
 import { SYMBOL_CATEGORIES, type LatexSymbol } from "../latex-symbols";
 import { useLatexToolStore } from "../store";
+import Icon from "../../../components/ui/Icon";
 
 interface SymbolButtonProps {
   symbol: LatexSymbol;
@@ -38,40 +39,49 @@ interface SymbolPaletteProps {
 }
 
 export default function SymbolPalette({ onInsert }: SymbolPaletteProps) {
-  const { activeCategory, setActiveCategory } = useLatexToolStore();
-
-  const currentCategory = useMemo(
-    () => SYMBOL_CATEGORIES.find((c) => c.id === activeCategory) ?? SYMBOL_CATEGORIES[0],
-    [activeCategory],
-  );
+  const { openCategories, toggleCategory } = useLatexToolStore();
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      {/* Category tabs — scrollable horizontally */}
-      <div className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border-default p-1.5 pb-0">
-        {SYMBOL_CATEGORIES.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => setActiveCategory(cat.id)}
-            className={`shrink-0 rounded-t px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
-              activeCategory === cat.id
-                ? "bg-bg-primary text-text-primary border border-b-0 border-border-default"
-                : "text-text-tertiary hover:text-text-secondary"
-            }`}
-          >
-            {cat.name}
-          </button>
-        ))}
-      </div>
+    <div className="flex-1 overflow-y-auto">
+      {SYMBOL_CATEGORIES.map((cat) => {
+        const isOpen = openCategories.has(cat.id);
 
-      {/* Symbol grid */}
-      <div className="flex-1 overflow-y-auto p-2">
-        <div className="flex flex-wrap gap-0.5">
-          {currentCategory.symbols.map((symbol) => (
-            <SymbolButton key={symbol.command + symbol.display} symbol={symbol} onInsert={onInsert} />
-          ))}
-        </div>
-      </div>
+        return (
+          <div key={cat.id} className="border-b border-border-default last:border-b-0">
+            {/* Section header */}
+            <button
+              onClick={() => toggleCategory(cat.id)}
+              className="flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-bg-surface-hover"
+            >
+              <span className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">
+                {cat.name}
+              </span>
+              <Icon
+                name="chevron-right"
+                size={12}
+                className={`shrink-0 text-text-tertiary transition-transform duration-200 ${
+                  isOpen ? "rotate-90" : ""
+                }`}
+              />
+            </button>
+
+            {/* Symbol grid */}
+            {isOpen && (
+              <div className="px-2 pb-2">
+                <div className="flex flex-wrap gap-0.5">
+                  {cat.symbols.map((symbol) => (
+                    <SymbolButton
+                      key={symbol.command + symbol.display}
+                      symbol={symbol}
+                      onInsert={onInsert}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

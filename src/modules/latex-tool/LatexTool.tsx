@@ -128,8 +128,8 @@ export default function LatexTool() {
               Copy
             </label>
             <div className="flex flex-col gap-2">
-              <CopyBlock label="Inline" content={inlineLatex} />
-              <CopyBlock label="Display" content={displayLatex} />
+              <CopyBlock label="$" content={inlineLatex} />
+              <CopyBlock label="$$" content={displayLatex} />
             </div>
           </div>
         </div>

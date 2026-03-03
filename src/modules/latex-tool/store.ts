@@ -3,16 +3,27 @@ import { SYMBOL_CATEGORIES } from "./latex-symbols";
 
 interface LatexToolState {
   latex: string;
-  activeCategory: string;
+  openCategories: Set<string>;
   setLatex: (latex: string) => void;
-  setActiveCategory: (id: string) => void;
+  toggleCategory: (id: string) => void;
   clearLatex: () => void;
 }
 
+const allOpen = new Set(SYMBOL_CATEGORIES.map((c) => c.id));
+
 export const useLatexToolStore = create<LatexToolState>((set) => ({
   latex: "",
-  activeCategory: SYMBOL_CATEGORIES[0].id,
+  openCategories: allOpen,
   setLatex: (latex) => set({ latex }),
-  setActiveCategory: (id) => set({ activeCategory: id }),
+  toggleCategory: (id) =>
+    set((state) => {
+      const next = new Set(state.openCategories);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return { openCategories: next };
+    }),
   clearLatex: () => set({ latex: "" }),
 }));
