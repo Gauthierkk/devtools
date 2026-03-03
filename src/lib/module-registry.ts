@@ -46,3 +46,12 @@ registerModule({
   route: "/latex",
   component: lazy(() => import("../modules/latex-tool/LatexTool")),
 });
+
+// Register Speed Test
+registerModule({
+  id: "speed-test",
+  name: "Speed Test",
+  icon: "gauge",
+  route: "/speed-test",
+  component: lazy(() => import("../modules/speed-test/SpeedTest")),
+});
