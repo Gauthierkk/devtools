@@ -113,6 +113,11 @@ const icons: Record<string, (size: number) => React.ReactNode> = {
       <path d="m15 9-6 6M9 9l6 6" />
     </svg>
   ),
+  sigma: (s) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 4H6l6 8-6 8h12" />
+    </svg>
+  ),
 };
 
 export default function Icon({ name, size = 16, className = "" }: IconProps) {
