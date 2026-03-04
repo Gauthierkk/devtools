@@ -140,6 +140,15 @@ const icons: Record<string, (size: number) => React.ReactNode> = {
       <circle cx="15" cy="19" r="1.5" />
     </svg>
   ),
+  regex: (s) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 3v10" />
+      <path d="M12.67 5.5l8.66 5" />
+      <path d="M12.67 10.5l8.66-5" />
+      <circle cx="7" cy="17" r="4" />
+      <path d="M3 17h8" />
+    </svg>
+  ),
 };
 
 export default function Icon({ name, size = 16, className = "" }: IconProps) {
