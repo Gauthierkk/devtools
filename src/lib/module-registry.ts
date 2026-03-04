@@ -55,3 +55,14 @@ registerModule({
   route: "/speed-test",
   component: lazy(() => import("../modules/speed-test/SpeedTest")),
 });
+
+// Register Networking Stats
+registerModule({
+  id: "networking-stats",
+  name: "Network",
+  icon: "activity",
+  route: "/network-stats",
+  component: lazy(
+    () => import("../modules/networking-stats/NetworkingStats"),
+  ),
+});

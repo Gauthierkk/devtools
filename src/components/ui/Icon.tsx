@@ -125,6 +125,11 @@ const icons: Record<string, (size: number) => React.ReactNode> = {
       <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
     </svg>
   ),
+  activity: (s) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
+    </svg>
+  ),
   grip: (s) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor">
       <circle cx="9" cy="5" r="1.5" />
