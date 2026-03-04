@@ -65,7 +65,8 @@ registerModule({
   component: lazy(
     () => import("../modules/networking-stats/NetworkingStats"),
   ),
-  
+});
+
 // Register Regex Tool
 registerModule({
   id: "regex-tool",

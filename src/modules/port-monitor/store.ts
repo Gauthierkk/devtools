@@ -14,6 +14,7 @@ interface PortMonitorState {
 
   setPorts: (ports: PortEntry[]) => void;
   setError: (error: string | null) => void;
+  reset: () => void;
 }
 
 export const usePortMonitorStore = create<PortMonitorState>()((set) => ({
@@ -22,4 +23,5 @@ export const usePortMonitorStore = create<PortMonitorState>()((set) => ({
 
   setPorts: (ports) => set({ ports, error: null }),
   setError: (error) => set({ error }),
+  reset: () => set({ ports: [], error: null }),
 }));

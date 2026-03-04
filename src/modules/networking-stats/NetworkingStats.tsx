@@ -36,7 +36,7 @@ const STATUS_COLORS: Record<string, string> = {
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export default function NetworkingStats() {
-  const { snapshots, rates, error, pushSnapshot, setError } =
+  const { snapshots, rates, error, pushSnapshot, setError, reset } =
     useNetworkStatsStore();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -50,12 +50,14 @@ export default function NetworkingStats() {
   }, [pushSnapshot, setError]);
 
   useEffect(() => {
+    reset();
     poll();
     intervalRef.current = setInterval(poll, POLL_MS);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      reset();
     };
-  }, [poll]);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const latest: NetworkSnapshot | null =
     snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;

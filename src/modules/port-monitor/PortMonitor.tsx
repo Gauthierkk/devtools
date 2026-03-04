@@ -6,7 +6,7 @@ import PortTable from "./components/PortTable";
 const POLL_INTERVAL = 2000;
 
 export default function PortMonitor() {
-  const { ports, setPorts, setError } = usePortMonitorStore();
+  const { ports, setPorts, setError, reset } = usePortMonitorStore();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refresh = useCallback(async () => {
@@ -19,12 +19,14 @@ export default function PortMonitor() {
   }, [setPorts, setError]);
 
   useEffect(() => {
+    reset();
     refresh();
     intervalRef.current = setInterval(refresh, POLL_INTERVAL);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      reset();
     };
-  }, [refresh]);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex h-full flex-col">
