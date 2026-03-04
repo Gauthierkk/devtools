@@ -1,4 +1,4 @@
-import type { TestStatus } from "../store";
+import type { TestStatus, ChunkResult } from "../store";
 
 // ─── Log-like scale ───────────────────────────────────────────────────────────
 // Evenly-spaced positions on the arc correspond to these Mbps values.
@@ -43,6 +43,19 @@ function buildArcPath(startDeg: number, endDeg: number, clockwise: boolean) {
 
 const BACKGROUND_ARC = buildArcPath(START_ANGLE, END_ANGLE, true);
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function formatBytes(bytes: number): string {
+  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
+  if (bytes >= 1_000) return `${(bytes / 1_000).toFixed(0)} KB`;
+  return `${bytes} B`;
+}
+
+function median(arr: number[]): number {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 // ─── Gauge SVG ────────────────────────────────────────────────────────────────
 interface GaugeProps {
   percentage: number; // 0–1
@@ -62,7 +75,7 @@ function Gauge({ percentage, color }: GaugeProps) {
         fill="none"
         stroke="currentColor"
         strokeWidth="7"
-        strokeLinecap="round"
+        strokeLinecap="butt"
         className="text-bg-surface-hover"
       />
 
@@ -99,12 +112,54 @@ function Gauge({ percentage, color }: GaugeProps) {
         fill="none"
         stroke={color}
         strokeWidth="7"
-        strokeLinecap="round"
+        strokeLinecap="butt"
         strokeDasharray={`${ARC_LENGTH}`}
         strokeDashoffset={dashOffset}
         style={{ transition: "stroke-dashoffset 0.4s cubic-bezier(0.4,0,0.2,1)" }}
       />
     </svg>
+  );
+}
+
+// ─── Detail tooltip ───────────────────────────────────────────────────────────
+export interface MetricDetails {
+  serverName: string;
+  serverLocation: string;
+  totalBytes: number;
+  chunks: ChunkResult[];
+}
+
+function DetailTooltip({ details }: { details: MetricDetails }) {
+  const speeds = details.chunks.map((c) => c.speed_mbps);
+  const fastest = Math.max(...speeds);
+  const slowest = Math.min(...speeds);
+  const med = median(speeds);
+  const avgDuration =
+    details.chunks.reduce((s, c) => s + c.duration_s, 0) / details.chunks.length;
+
+  const rows: [string, string][] = [
+    ["Server", `${details.serverName} (${details.serverLocation})`],
+    ["Data", formatBytes(details.totalBytes)],
+    ["Chunks", `${details.chunks.length}`],
+    ["Fastest", `${fastest.toFixed(1)} Mbps`],
+    ["Slowest", `${slowest.toFixed(1)} Mbps`],
+    ["Median", `${med.toFixed(1)} Mbps`],
+    ["Avg chunk time", `${(avgDuration * 1000).toFixed(0)} ms`],
+  ];
+
+  return (
+    <div className="absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 rounded-lg border border-border-default bg-bg-surface px-3 py-2 shadow-lg">
+      <table className="text-left text-xs">
+        <tbody>
+          {rows.map(([label, val]) => (
+            <tr key={label}>
+              <td className="whitespace-nowrap pr-3 text-text-tertiary">{label}</td>
+              <td className="whitespace-nowrap font-medium text-text-primary">{val}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -118,6 +173,7 @@ export interface MetricCardProps {
   status: TestStatus;
   error: string | null;
   color: string;
+  details?: MetricDetails;
 }
 
 export default function MetricCard({
@@ -129,6 +185,7 @@ export default function MetricCard({
   status,
   error,
   color,
+  details,
 }: MetricCardProps) {
   const percentage = value != null ? speedToPercent(value) : 0;
 
@@ -187,7 +244,21 @@ export default function MetricCard({
       {/* Subtitle / error */}
       <div className="mt-2 min-h-[1rem] text-center">
         {(status === "running" || status === "done") && subtitle && (
-          <p className="text-xs text-text-tertiary">{subtitle}</p>
+          <p className="inline-flex items-center gap-1 text-xs text-text-tertiary">
+            {subtitle}
+            {status === "done" && details && (
+              <span className="group/info relative cursor-help">
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="inline-block text-text-tertiary transition-colors hover:text-text-secondary">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+                <span className="pointer-events-none opacity-0 transition-opacity group-hover/info:pointer-events-auto group-hover/info:opacity-100">
+                  <DetailTooltip details={details} />
+                </span>
+              </span>
+            )}
+          </p>
         )}
         {status === "error" && error && (
           <p className="text-xs text-danger leading-snug">{error}</p>

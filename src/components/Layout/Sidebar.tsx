@@ -4,6 +4,7 @@ import { getModules, type ToolModule } from "../../lib/module-registry";
 import { useSidebarStore } from "../../stores/sidebar-store";
 import { useThemeStore, type Theme } from "../../stores/theme-store";
 import Icon from "../ui/Icon";
+import devtoolsLogo from "../../assets/devtools-logo.svg";
 
 const themeLabels: Record<Theme, string> = {
   light: "Light",
@@ -224,7 +225,7 @@ export default function Sidebar() {
         {isExpanded ? (
           <>
             <div className="flex items-center gap-2">
-              <span className="shrink-0 text-sm font-semibold text-text-secondary">DT</span>
+              <img src={devtoolsLogo} alt="DevTools" className="h-6 w-6 shrink-0" />
               <span className="truncate text-sm font-medium text-text-primary">DevTools</span>
             </div>
             <button
@@ -239,9 +240,9 @@ export default function Sidebar() {
           <button
             onClick={() => setIsExpanded(true)}
             title="Expand sidebar"
-            className="flex h-6 w-6 items-center justify-center rounded text-text-secondary hover:bg-bg-surface-hover hover:text-text-primary"
+            className="flex items-center justify-center rounded text-text-secondary hover:bg-bg-surface-hover hover:text-text-primary"
           >
-            <Icon name="chevron-right" size={14} />
+            <img src={devtoolsLogo} alt="DevTools" className="h-6 w-6" />
           </button>
         )}
       </div>
