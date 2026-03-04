@@ -55,3 +55,12 @@ registerModule({
   route: "/speed-test",
   component: lazy(() => import("../modules/speed-test/SpeedTest")),
 });
+
+// Register Regex Tool
+registerModule({
+  id: "regex-tool",
+  name: "Regex",
+  icon: "regex",
+  route: "/regex",
+  component: lazy(() => import("../modules/regex-tool/RegexTool")),
+});

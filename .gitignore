@@ -4,9 +4,9 @@ dist/
 .vite/
 
 # Python
-backend/.venv/
-backend/__pycache__/
-backend/**/*.pyc
+.venv/
+**/__pycache__/
+**/*.pyc
 
 # Rust / Tauri build artifacts
 src-tauri/target/
@@ -17,3 +17,6 @@ install/
 # OS / editor
 .DS_Store
 .vscode/
+
+# local
+local/
