@@ -15,12 +15,17 @@ backend_dir = os.path.join(search, "backend")
 sys.path.insert(0, backend_dir)
 
 # Add venv site-packages so dependencies (psutil, etc.) are available
-venv_site = os.path.join(backend_dir, ".venv", "lib")
-if os.path.isdir(venv_site):
-    for d in os.listdir(venv_site):
-        sp = os.path.join(venv_site, d, "site-packages")
-        if os.path.isdir(sp):
-            sys.path.insert(0, sp)
+# Check both backend/.venv and project-root/.venv
+project_root = os.path.dirname(backend_dir)
+for venv_base in [
+    os.path.join(backend_dir, ".venv", "lib"),
+    os.path.join(project_root, ".venv", "lib"),
+]:
+    if os.path.isdir(venv_base):
+        for d in os.listdir(venv_base):
+            sp = os.path.join(venv_base, d, "site-packages")
+            if os.path.isdir(sp):
+                sys.path.insert(0, sp)
 
 from main import main
 main()
