@@ -14,8 +14,8 @@ Modular macOS-first desktop app: Tauri v2 (Rust shell) + React/TypeScript fronte
 - `npm run dev` — Vite dev server (port 1420)
 - `npx tauri dev` — Full Tauri dev (Vite + Rust + sidecar)
 - `npx tauri build --debug` — Debug build (.app + .dmg)
-- `cd backend && uv run ruff format .` — Format Python code
-- `cd backend && uv run ruff check .` — Lint Python code
+- `uv run ruff format backend/` — Format Python code
+- `uv run ruff check backend/` — Lint Python code
 - `npx tsc --noEmit` — TypeScript type check
 
 ## Architecture
