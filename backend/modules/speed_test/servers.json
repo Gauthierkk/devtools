@@ -4,35 +4,120 @@
       "id": "cloudflare",
       "name": "Cloudflare",
       "location": "Global CDN",
+      "continent": "Global",
       "download_url": "https://speed.cloudflare.com/__down?bytes={size}",
       "upload_url": "https://speed.cloudflare.com/__up"
     },
     {
-      "id": "hetzner-eu",
+      "id": "hetzner-us-east",
       "name": "Hetzner",
-      "location": "Falkenstein, DE",
-      "download_url": "https://fsn1-speed.hetzner.com/100MB.bin",
+      "location": "Ashburn, US",
+      "continent": "North America",
+      "download_url": "https://ash-speed.hetzner.com/100MB.bin",
       "upload_url": null
     },
     {
-      "id": "ovh-eu",
-      "name": "OVH",
-      "location": "Gravelines, FR",
-      "download_url": "https://gra.proof.ovh.net/files/100Mb.dat",
-      "upload_url": null
-    },
-    {
-      "id": "linode-us",
+      "id": "linode-us-east",
       "name": "Linode",
       "location": "Newark, US",
+      "continent": "North America",
       "download_url": "https://speedtest.newark.linode.com/100MB-newark.bin",
       "upload_url": null
     },
     {
-      "id": "hetzner-us",
+      "id": "linode-us-west",
+      "name": "Linode",
+      "location": "Fremont, US",
+      "continent": "North America",
+      "download_url": "https://speedtest.fremont.linode.com/100MB-fremont.bin",
+      "upload_url": null
+    },
+    {
+      "id": "linode-us-central",
+      "name": "Linode",
+      "location": "Dallas, US",
+      "continent": "North America",
+      "download_url": "https://speedtest.dallas.linode.com/100MB-dallas.bin",
+      "upload_url": null
+    },
+    {
+      "id": "hetzner-eu-de",
       "name": "Hetzner",
-      "location": "Ashburn, US",
-      "download_url": "https://ash-speed.hetzner.com/100MB.bin",
+      "location": "Falkenstein, DE",
+      "continent": "Europe",
+      "download_url": "https://fsn1-speed.hetzner.com/100MB.bin",
+      "upload_url": null
+    },
+    {
+      "id": "ovh-eu-fr",
+      "name": "OVH",
+      "location": "Gravelines, FR",
+      "continent": "Europe",
+      "download_url": "https://gra.proof.ovh.net/files/100Mb.dat",
+      "upload_url": null
+    },
+    {
+      "id": "hetzner-eu-fi",
+      "name": "Hetzner",
+      "location": "Helsinki, FI",
+      "continent": "Europe",
+      "download_url": "https://hel1-speed.hetzner.com/100MB.bin",
+      "upload_url": null
+    },
+    {
+      "id": "linode-eu-uk",
+      "name": "Linode",
+      "location": "London, UK",
+      "continent": "Europe",
+      "download_url": "https://speedtest.london.linode.com/100MB-london.bin",
+      "upload_url": null
+    },
+    {
+      "id": "linode-ap-sg",
+      "name": "Linode",
+      "location": "Singapore",
+      "continent": "Asia-Pacific",
+      "download_url": "https://speedtest.singapore.linode.com/100MB-singapore.bin",
+      "upload_url": null
+    },
+    {
+      "id": "linode-ap-jp",
+      "name": "Linode",
+      "location": "Tokyo, JP",
+      "continent": "Asia-Pacific",
+      "download_url": "https://speedtest.tokyo2.linode.com/100MB-tokyo2.bin",
+      "upload_url": null
+    },
+    {
+      "id": "linode-ap-in",
+      "name": "Linode",
+      "location": "Mumbai, IN",
+      "continent": "Asia-Pacific",
+      "download_url": "https://speedtest.mumbai1.linode.com/100MB-mumbai1.bin",
+      "upload_url": null
+    },
+    {
+      "id": "hetzner-ap-sg",
+      "name": "Hetzner",
+      "location": "Singapore",
+      "continent": "Asia-Pacific",
+      "download_url": "https://sin-speed.hetzner.com/100MB.bin",
+      "upload_url": null
+    },
+    {
+      "id": "linode-sa-br",
+      "name": "Linode",
+      "location": "São Paulo, BR",
+      "continent": "South America",
+      "download_url": "https://speedtest.sao-paulo.linode.com/100MB-sao-paulo.bin",
+      "upload_url": null
+    },
+    {
+      "id": "linode-oc-au",
+      "name": "Linode",
+      "location": "Sydney, AU",
+      "continent": "Oceania",
+      "download_url": "https://speedtest.syd1.linode.com/100MB-syd1.bin",
       "upload_url": null
     }
   ]

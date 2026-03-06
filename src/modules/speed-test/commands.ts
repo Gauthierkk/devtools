@@ -14,6 +14,7 @@ export interface ServerInfo {
   id: string;
   name: string;
   location: string;
+  continent: string;
   download_url: string;
   upload_url: string | null;
 }
@@ -40,6 +41,19 @@ export interface UploadChunkResult {
   duration_s: number;
 }
 
+export interface SpeedTestResult {
+  speed_mbps: number;
+  total_bytes: number;
+  duration_s: number;
+  streams: number;
+}
+
+export interface SpeedProgress {
+  total_bytes: number;
+  elapsed_s: number;
+  speed_mbps: number;
+}
+
 export const listServers = () =>
   wrapTauriError(rpcCall<{ servers: ServerInfo[] }>("speed_test.list_servers", {}));
 
@@ -51,3 +65,16 @@ export const runDownloadChunk = (bytes_to_fetch: number, server_id?: string) =>
 
 export const runUploadChunk = (bytes_to_send: number, server_id?: string) =>
   wrapTauriError(rpcCall<UploadChunkResult>("speed_test.run_upload_chunk", { bytes_to_send, server_id }));
+
+export const runDownloadTest = (server_id?: string, num_streams = 6, duration_target_s = 10) =>
+  wrapTauriError(
+    rpcCall<SpeedTestResult>("speed_test.run_download_test", { server_id, num_streams, duration_target_s }),
+  );
+
+export const runUploadTest = (server_id?: string, num_streams = 6, duration_target_s = 10) =>
+  wrapTauriError(
+    rpcCall<SpeedTestResult>("speed_test.run_upload_test", { server_id, num_streams, duration_target_s }),
+  );
+
+export const getSpeedProgress = (phase: "download" | "upload") =>
+  wrapTauriError(rpcCall<SpeedProgress>("speed_test.get_speed_progress", { phase }));

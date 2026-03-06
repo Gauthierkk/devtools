@@ -50,9 +50,7 @@ def get_snapshot() -> dict:
             "speed": stat.speed if stat else 0,
             "mtu": stat.mtu if stat else 0,
             "addrs": [
-                {"family": _family_name(a.family), "address": a.address}
-                for a in addrs
-                if a.address
+                {"family": _family_name(a.family), "address": a.address} for a in addrs if a.address
             ],
         }
 

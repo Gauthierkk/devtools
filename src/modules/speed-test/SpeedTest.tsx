@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useSpeedTestStore } from "./store";
-import { listServers, runPingBatch, runDownloadChunk, runUploadChunk } from "./commands";
+import {
+  listServers,
+  runPingBatch,
+  runDownloadTest,
+  runUploadTest,
+  getSpeedProgress,
+} from "./commands";
 import MetricCard from "./components/MetricCard";
 
 // Gauge accent colors
 const COLOR_DOWNLOAD = "hsl(160, 65%, 50%)";  // teal-green
 const COLOR_UPLOAD = "hsl(250, 70%, 65%)";     // purple
 
-const CHUNK_BYTES = 3_000_000; // smaller chunks = more frequent gauge updates
-const CHUNKS = 8;
 const CONNECTIVITY_CHECK_INTERVAL = 5_000; // 5 seconds
+const PROGRESS_POLL_MS = 500;
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 function DownloadIcon() {
@@ -65,15 +70,34 @@ function useConnectivityCheck() {
   return isOnline;
 }
 
+// ─── Progress polling helper ─────────────────────────────────────────────────
+function startProgressPoll(
+  phase: "download" | "upload",
+  updateMetric: (key: "download" | "upload", patch: Record<string, unknown>) => void,
+): () => void {
+  const interval = setInterval(async () => {
+    try {
+      const p = await getSpeedProgress(phase);
+      if (p.total_bytes > 0) {
+        updateMetric(phase, {
+          value: Math.round(p.speed_mbps * 10) / 10,
+          subtitle: `${(p.total_bytes / 1_000_000).toFixed(0)} MB — ${p.elapsed_s.toFixed(1)}s`,
+        });
+      }
+    } catch { /* ignore polling errors */ }
+  }, PROGRESS_POLL_MS);
+  return () => clearInterval(interval);
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function SpeedTest() {
   const {
     ping, download, upload,
     isRunning, servers, selectedServerId,
-    downloadChunks, uploadChunks, pingDetails,
+    downloadResult, uploadResult, pingDetails,
     updateMetric, setIsRunning, reset,
     setServers, setSelectedServerId,
-    addDownloadChunk, addUploadChunk, setPingDetails,
+    setDownloadResult, setUploadResult, setPingDetails,
   } = useSpeedTestStore();
 
   const isOnline = useConnectivityCheck();
@@ -119,88 +143,60 @@ export default function SpeedTest() {
       });
     }
 
-    // 2. Download — 8 chunks of 3MB, live-updating average speed
+    // 2. Download — parallel multi-stream test with live progress polling
     updateMetric("download", { status: "running" });
     {
-      let totalBytes = 0;
-      let totalDuration = 0;
-      for (let i = 0; i < CHUNKS; i++) {
-        try {
-          const res = await runDownloadChunk(CHUNK_BYTES, serverId);
-          totalBytes += res.bytes_received;
-          totalDuration += res.duration_s;
-          addDownloadChunk({
-            speed_mbps: res.speed_mbps,
-            bytes: res.bytes_received,
-            duration_s: res.duration_s,
-          });
-          const avgSpeed = (totalBytes * 8) / (totalDuration * 1_000_000);
-          updateMetric("download", {
-            value: Math.round(avgSpeed * 10) / 10,
-            subtitle: `${(totalBytes / 1_000_000).toFixed(0)} / ${((CHUNKS * CHUNK_BYTES) / 1_000_000).toFixed(0)} MB`,
-          });
-        } catch (err) {
-          if (totalBytes === 0) {
-            updateMetric("download", {
-              status: "error",
-              error: err instanceof Error ? err.message : String(err),
-            });
-            break;
-          }
-        }
-      }
-      if (totalBytes > 0) {
-        const finalSpeed = (totalBytes * 8) / (totalDuration * 1_000_000);
+      const stopPoll = startProgressPoll("download", updateMetric);
+      try {
+        const result = await runDownloadTest(serverId);
+        stopPoll();
+        setDownloadResult({
+          total_bytes: result.total_bytes,
+          duration_s: result.duration_s,
+          streams: result.streams,
+        });
         updateMetric("download", {
           status: "done",
-          value: Math.round(finalSpeed * 10) / 10,
-          subtitle: `Average over ${(totalBytes / 1_000_000).toFixed(0)} MB`,
+          value: result.speed_mbps,
+          subtitle: `${(result.total_bytes / 1_000_000).toFixed(0)} MB over ${result.duration_s}s (${result.streams} streams)`,
+        });
+      } catch (err) {
+        stopPoll();
+        updateMetric("download", {
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
         });
       }
     }
 
-    // 3. Upload — 8 chunks of 3MB, live-updating average speed
+    // 3. Upload — parallel multi-stream test with live progress polling
     updateMetric("upload", { status: "running" });
     {
-      let totalBytes = 0;
-      let totalDuration = 0;
-      for (let i = 0; i < CHUNKS; i++) {
-        try {
-          const res = await runUploadChunk(CHUNK_BYTES, serverId);
-          totalBytes += res.bytes_sent;
-          totalDuration += res.duration_s;
-          addUploadChunk({
-            speed_mbps: res.speed_mbps,
-            bytes: res.bytes_sent,
-            duration_s: res.duration_s,
-          });
-          const avgSpeed = (totalBytes * 8) / (totalDuration * 1_000_000);
-          updateMetric("upload", {
-            value: Math.round(avgSpeed * 10) / 10,
-            subtitle: `${(totalBytes / 1_000_000).toFixed(0)} / ${((CHUNKS * CHUNK_BYTES) / 1_000_000).toFixed(0)} MB`,
-          });
-        } catch (err) {
-          if (totalBytes === 0) {
-            updateMetric("upload", {
-              status: "error",
-              error: err instanceof Error ? err.message : String(err),
-            });
-            break;
-          }
-        }
-      }
-      if (totalBytes > 0) {
-        const finalSpeed = (totalBytes * 8) / (totalDuration * 1_000_000);
+      const stopPoll = startProgressPoll("upload", updateMetric);
+      try {
+        const result = await runUploadTest(serverId);
+        stopPoll();
+        setUploadResult({
+          total_bytes: result.total_bytes,
+          duration_s: result.duration_s,
+          streams: result.streams,
+        });
         updateMetric("upload", {
           status: "done",
-          value: Math.round(finalSpeed * 10) / 10,
-          subtitle: `avg over ${(totalBytes / 1_000_000).toFixed(0)} MB`,
+          value: result.speed_mbps,
+          subtitle: `${(result.total_bytes / 1_000_000).toFixed(0)} MB over ${result.duration_s}s (${result.streams} streams)`,
+        });
+      } catch (err) {
+        stopPoll();
+        updateMetric("upload", {
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
         });
       }
     }
 
     setIsRunning(false);
-  }, [reset, setIsRunning, updateMetric, selectedServerId, selectedServer, addDownloadChunk, addUploadChunk, setPingDetails]);
+  }, [reset, setIsRunning, updateMetric, selectedServerId, selectedServer, setDownloadResult, setUploadResult, setPingDetails]);
 
   const hasAnyResult =
     ping.status !== "idle" ||
@@ -247,10 +243,10 @@ export default function SpeedTest() {
       </div>
 
       {/* Body */}
-      <div className="flex flex-1 flex-col items-center justify-start overflow-y-auto px-6 py-6">
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-6">
 
         {/* Gauges */}
-        <div className="grid w-full max-w-2xl grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4" style={{ width: "clamp(360px, 90vw, 720px)" }}>
           <MetricCard
             label="Download"
             icon={<DownloadIcon />}
@@ -260,11 +256,12 @@ export default function SpeedTest() {
             status={download.status}
             error={download.error}
             color={COLOR_DOWNLOAD}
-            details={download.status === "done" ? {
+            details={download.status === "done" && downloadResult ? {
               serverName: selectedServer?.name ?? "Cloudflare",
               serverLocation: selectedServer?.location ?? "Global CDN",
-              totalBytes: downloadChunks.reduce((sum, c) => sum + c.bytes, 0),
-              chunks: downloadChunks,
+              totalBytes: downloadResult.total_bytes,
+              streams: downloadResult.streams,
+              duration_s: downloadResult.duration_s,
             } : undefined}
           />
           <MetricCard
@@ -276,19 +273,20 @@ export default function SpeedTest() {
             status={upload.status}
             error={upload.error}
             color={COLOR_UPLOAD}
-            details={upload.status === "done" ? {
+            details={upload.status === "done" && uploadResult ? {
               serverName: (selectedServer?.upload_url ? selectedServer.name : "Cloudflare"),
               serverLocation: (selectedServer?.upload_url ? selectedServer.location : "Global CDN"),
-              totalBytes: uploadChunks.reduce((sum, c) => sum + c.bytes, 0),
-              chunks: uploadChunks,
+              totalBytes: uploadResult.total_bytes,
+              streams: uploadResult.streams,
+              duration_s: uploadResult.duration_s,
             } : undefined}
           />
         </div>
 
         {/* Ping + Server selector — side by side */}
-        <div className="mt-4 grid w-full max-w-2xl grid-cols-2 gap-4">
+        <div className="mt-4 grid grid-cols-2 gap-4" style={{ width: "clamp(360px, 90vw, 720px)" }}>
           {/* Ping */}
-          <div className="rounded-xl border border-border-default bg-bg-surface px-6 py-4">
+          <div className="w-full rounded-xl border border-border-default bg-bg-surface px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-text-tertiary">
@@ -352,7 +350,7 @@ export default function SpeedTest() {
           </div>
 
           {/* Server selector */}
-          <div className="rounded-xl border border-border-default bg-bg-surface px-6 py-4">
+          <div className="w-full rounded-xl border border-border-default bg-bg-surface px-6 py-4">
             <div className="flex items-center gap-2 mb-2">
               <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-text-tertiary">
                 <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
@@ -368,13 +366,26 @@ export default function SpeedTest() {
               disabled={isRunning}
               className="w-full rounded-md border border-border-default bg-bg-surface px-2 py-1.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
             >
-              {servers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} — {s.location}{s.upload_url ? "" : " (download only)"}
-                </option>
-              ))}
-              {servers.length === 0 && (
+              {servers.length === 0 ? (
                 <option value="cloudflare">Cloudflare — Global CDN</option>
+              ) : (
+                (() => {
+                  const grouped = new Map<string, typeof servers>();
+                  for (const s of servers) {
+                    const continent = s.continent || "Other";
+                    if (!grouped.has(continent)) grouped.set(continent, []);
+                    grouped.get(continent)!.push(s);
+                  }
+                  return Array.from(grouped.entries()).map(([continent, group]) => (
+                    <optgroup key={continent} label={continent}>
+                      {group.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} — {s.location}{s.upload_url ? "" : " (dl only)"}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ));
+                })()
               )}
             </select>
           </div>

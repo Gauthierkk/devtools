@@ -1,4 +1,4 @@
-import type { TestStatus, ChunkResult } from "../store";
+import type { TestStatus } from "../store";
 
 // ─── Log-like scale ───────────────────────────────────────────────────────────
 // Evenly-spaced positions on the arc correspond to these Mbps values.
@@ -45,15 +45,10 @@ const BACKGROUND_ARC = buildArcPath(START_ANGLE, END_ANGLE, true);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatBytes(bytes: number): string {
+  if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
   if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
   if (bytes >= 1_000) return `${(bytes / 1_000).toFixed(0)} KB`;
   return `${bytes} B`;
-}
-
-function median(arr: number[]): number {
-  const sorted = [...arr].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 // ─── Gauge SVG ────────────────────────────────────────────────────────────────
@@ -126,25 +121,16 @@ export interface MetricDetails {
   serverName: string;
   serverLocation: string;
   totalBytes: number;
-  chunks: ChunkResult[];
+  streams: number;
+  duration_s: number;
 }
 
 function DetailTooltip({ details }: { details: MetricDetails }) {
-  const speeds = details.chunks.map((c) => c.speed_mbps);
-  const fastest = Math.max(...speeds);
-  const slowest = Math.min(...speeds);
-  const med = median(speeds);
-  const avgDuration =
-    details.chunks.reduce((s, c) => s + c.duration_s, 0) / details.chunks.length;
-
   const rows: [string, string][] = [
     ["Server", `${details.serverName} (${details.serverLocation})`],
     ["Data", formatBytes(details.totalBytes)],
-    ["Chunks", `${details.chunks.length}`],
-    ["Fastest", `${fastest.toFixed(1)} Mbps`],
-    ["Slowest", `${slowest.toFixed(1)} Mbps`],
-    ["Median", `${med.toFixed(1)} Mbps`],
-    ["Avg chunk time", `${(avgDuration * 1000).toFixed(0)} ms`],
+    ["Streams", `${details.streams}`],
+    ["Duration", `${details.duration_s}s`],
   ];
 
   return (
@@ -198,7 +184,7 @@ export default function MetricCard({
     : unit;
 
   return (
-    <div className="flex flex-col rounded-xl border border-border-default bg-bg-surface p-4">
+    <div className="flex flex-col rounded-xl border border-border-default bg-bg-surface p-4 w-full h-fit">
       {/* Header */}
       <div className="mb-3 flex items-center gap-2">
         <span className="text-text-tertiary">{icon}</span>
