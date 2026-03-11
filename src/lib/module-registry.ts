@@ -75,3 +75,12 @@ registerModule({
   route: "/regex",
   component: lazy(() => import("../modules/regex-tool/RegexTool")),
 });
+
+// Register Cron Manager
+registerModule({
+  id: "cron-manager",
+  name: "Cron",
+  icon: "clock",
+  route: "/cron",
+  component: lazy(() => import("../modules/cron-manager/CronManager")),
+});
