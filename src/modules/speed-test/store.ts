@@ -3,10 +3,10 @@ import type { ServerInfo } from "./commands";
 
 export type TestStatus = "idle" | "running" | "done" | "error";
 
-export interface ChunkResult {
-  speed_mbps: number;
-  bytes: number;
+export interface TestResult {
+  total_bytes: number;
   duration_s: number;
+  streams: number;
 }
 
 export interface PingDetails {
@@ -41,9 +41,9 @@ interface SpeedTestState {
   servers: ServerInfo[];
   selectedServerId: string | null;
 
-  // Per-chunk detailed stats
-  downloadChunks: ChunkResult[];
-  uploadChunks: ChunkResult[];
+  // Test result details (replaces per-chunk arrays)
+  downloadResult: TestResult | null;
+  uploadResult: TestResult | null;
   pingDetails: PingDetails | null;
 
   updateMetric: (key: MetricKey, patch: Partial<TestMetric>) => void;
@@ -51,8 +51,8 @@ interface SpeedTestState {
   setIsOnline: (v: boolean) => void;
   setServers: (servers: ServerInfo[]) => void;
   setSelectedServerId: (id: string | null) => void;
-  addDownloadChunk: (chunk: ChunkResult) => void;
-  addUploadChunk: (chunk: ChunkResult) => void;
+  setDownloadResult: (result: TestResult | null) => void;
+  setUploadResult: (result: TestResult | null) => void;
   setPingDetails: (details: PingDetails | null) => void;
   reset: () => void;
 }
@@ -65,8 +65,8 @@ export const useSpeedTestStore = create<SpeedTestState>((set) => ({
   isOnline: true,
   servers: [],
   selectedServerId: null,
-  downloadChunks: [],
-  uploadChunks: [],
+  downloadResult: null,
+  uploadResult: null,
   pingDetails: null,
 
   updateMetric: (key, patch) =>
@@ -80,11 +80,9 @@ export const useSpeedTestStore = create<SpeedTestState>((set) => ({
 
   setSelectedServerId: (id) => set({ selectedServerId: id }),
 
-  addDownloadChunk: (chunk) =>
-    set((s) => ({ downloadChunks: [...s.downloadChunks, chunk] })),
+  setDownloadResult: (result) => set({ downloadResult: result }),
 
-  addUploadChunk: (chunk) =>
-    set((s) => ({ uploadChunks: [...s.uploadChunks, chunk] })),
+  setUploadResult: (result) => set({ uploadResult: result }),
 
   setPingDetails: (details) => set({ pingDetails: details }),
 
@@ -94,8 +92,8 @@ export const useSpeedTestStore = create<SpeedTestState>((set) => ({
       download: idle,
       upload: idle,
       isRunning: false,
-      downloadChunks: [],
-      uploadChunks: [],
+      downloadResult: null,
+      uploadResult: null,
       pingDetails: null,
     }),
 }));
