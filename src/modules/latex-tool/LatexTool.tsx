@@ -39,9 +39,44 @@ function CopyBlock({ label, content }: { label: string; content: string }) {
   );
 }
 
+const DEFAULT_PALETTE_WIDTH = 288; // w-72
+const MIN_PALETTE_WIDTH = 160;
+
 export default function LatexTool() {
   const { latex, setLatex, clearLatex } = useLatexToolStore();
   const editorRef = useRef<HTMLTextAreaElement>(null);
+
+  const [paletteWidth, setPaletteWidth] = useState(DEFAULT_PALETTE_WIDTH);
+  const dragStartX = useRef<number | null>(null);
+  const dragStartWidth = useRef(DEFAULT_PALETTE_WIDTH);
+
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = paletteWidth;
+
+    const onMouseMove = (moveE: MouseEvent) => {
+      if (dragStartX.current === null) return;
+      const delta = moveE.clientX - dragStartX.current;
+      const maxDelta = window.innerWidth * 0.2;
+      const clamped = Math.max(-maxDelta, Math.min(maxDelta, delta));
+      const next = Math.max(MIN_PALETTE_WIDTH, dragStartWidth.current + clamped);
+      setPaletteWidth(next);
+    };
+
+    const onMouseUp = () => {
+      dragStartX.current = null;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, [paletteWidth]);
 
   // Insert symbol at cursor position, place cursor inside first {} if present
   const handleInsert = useCallback(
@@ -73,7 +108,7 @@ export default function LatexTool() {
   return (
     <div className="flex h-full overflow-hidden">
       {/* Left: Symbol palette */}
-      <div className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-border-default">
+      <div className="flex shrink-0 flex-col overflow-hidden" style={{ width: paletteWidth }}>
         <div className="flex h-[42px] shrink-0 items-center border-b border-border-default px-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">
             Symbols
@@ -81,6 +116,12 @@ export default function LatexTool() {
         </div>
         <SymbolPalette onInsert={handleInsert} />
       </div>
+
+      {/* Drag divider */}
+      <div
+        onMouseDown={handleDividerMouseDown}
+        className="group relative flex w-1 shrink-0 cursor-col-resize items-center justify-center bg-border-default transition-colors hover:bg-accent"
+      />
 
       {/* Right: Editor + Preview + Copy blocks */}
       <div className="flex flex-1 flex-col overflow-hidden">

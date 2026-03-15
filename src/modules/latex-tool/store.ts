@@ -8,6 +8,10 @@ interface LatexToolState {
   categoryOrder: string[];
   setLatex: (latex: string) => void;
   toggleCategory: (id: string) => void;
+  collapseAllCategories: () => void;
+  expandAllCategories: () => void;
+  enabledCategories: Set<string>;
+  toggleEnabledCategory: (id: string) => void;
   setCategoryOrder: (order: string[]) => void;
   clearLatex: () => void;
 }
@@ -30,6 +34,19 @@ export const useLatexToolStore = create<LatexToolState>()(
             next.add(id);
           }
           return { openCategories: next };
+        }),
+      collapseAllCategories: () => set({ openCategories: new Set() }),
+      expandAllCategories: () => set({ openCategories: new Set(SYMBOL_CATEGORIES.map((c) => c.id)) }),
+      enabledCategories: new Set(SYMBOL_CATEGORIES.map((c) => c.id)),
+      toggleEnabledCategory: (id) =>
+        set((state) => {
+          const next = new Set(state.enabledCategories);
+          if (next.has(id)) {
+            next.delete(id);
+          } else {
+            next.add(id);
+          }
+          return { enabledCategories: next };
         }),
       setCategoryOrder: (order) => set({ categoryOrder: order }),
       clearLatex: () => set({ latex: "" }),
