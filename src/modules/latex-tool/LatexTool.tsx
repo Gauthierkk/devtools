@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useLayoutEffect } from "react";
 import { useLatexToolStore } from "./store";
 import SymbolPalette from "./components/SymbolPalette";
 import LatexPreview from "./components/LatexPreview";
@@ -39,16 +39,20 @@ function CopyBlock({ label, content }: { label: string; content: string }) {
   );
 }
 
-const DEFAULT_PALETTE_WIDTH = 288; // w-72
-const MIN_PALETTE_WIDTH = 160;
-
 export default function LatexTool() {
   const { latex, setLatex, clearLatex } = useLatexToolStore();
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
-  const [paletteWidth, setPaletteWidth] = useState(DEFAULT_PALETTE_WIDTH);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [paletteWidth, setPaletteWidth] = useState(0);
   const dragStartX = useRef<number | null>(null);
-  const dragStartWidth = useRef(DEFAULT_PALETTE_WIDTH);
+  const dragStartWidth = useRef(0);
+
+  useLayoutEffect(() => {
+    if (containerRef.current) {
+      setPaletteWidth(containerRef.current.offsetWidth * 0.15);
+    }
+  }, []);
 
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -58,9 +62,10 @@ export default function LatexTool() {
     const onMouseMove = (moveE: MouseEvent) => {
       if (dragStartX.current === null) return;
       const delta = moveE.clientX - dragStartX.current;
-      const maxDelta = window.innerWidth * 0.2;
-      const clamped = Math.max(-maxDelta, Math.min(maxDelta, delta));
-      const next = Math.max(MIN_PALETTE_WIDTH, dragStartWidth.current + clamped);
+      const containerWidth = containerRef.current?.offsetWidth ?? window.innerWidth;
+      const minWidth = containerWidth * 0.15;
+      const maxWidth = containerWidth * 0.5;
+      const next = Math.min(maxWidth, Math.max(minWidth, dragStartWidth.current + delta));
       setPaletteWidth(next);
     };
 
@@ -106,7 +111,7 @@ export default function LatexTool() {
   const displayLatex = `$$${latex}$$`;
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div ref={containerRef} className="flex h-full overflow-hidden">
       {/* Left: Symbol palette */}
       <div className="flex shrink-0 flex-col overflow-hidden" style={{ width: paletteWidth }}>
         <div className="flex h-[42px] shrink-0 items-center border-b border-border-default px-3">
