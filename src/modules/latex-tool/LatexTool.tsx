@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useLayoutEffect } from "react";
 import { useLatexToolStore } from "./store";
 import SymbolPalette from "./components/SymbolPalette";
 import LatexPreview from "./components/LatexPreview";
@@ -43,6 +43,46 @@ export default function LatexTool() {
   const { latex, setLatex, clearLatex } = useLatexToolStore();
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [paletteWidth, setPaletteWidth] = useState(0);
+  const dragStartX = useRef<number | null>(null);
+  const dragStartWidth = useRef(0);
+
+  useLayoutEffect(() => {
+    if (containerRef.current) {
+      setPaletteWidth(containerRef.current.offsetWidth * 0.15);
+    }
+  }, []);
+
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = paletteWidth;
+
+    const onMouseMove = (moveE: MouseEvent) => {
+      if (dragStartX.current === null) return;
+      const delta = moveE.clientX - dragStartX.current;
+      const containerWidth = containerRef.current?.offsetWidth ?? window.innerWidth;
+      const minWidth = containerWidth * 0.15;
+      const maxWidth = containerWidth * 0.5;
+      const next = Math.min(maxWidth, Math.max(minWidth, dragStartWidth.current + delta));
+      setPaletteWidth(next);
+    };
+
+    const onMouseUp = () => {
+      dragStartX.current = null;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, [paletteWidth]);
+
   // Insert symbol at cursor position, place cursor inside first {} if present
   const handleInsert = useCallback(
     (command: string) => {
@@ -71,9 +111,9 @@ export default function LatexTool() {
   const displayLatex = `$$${latex}$$`;
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div ref={containerRef} className="flex h-full overflow-hidden">
       {/* Left: Symbol palette */}
-      <div className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-border-default">
+      <div className="flex shrink-0 flex-col overflow-hidden" style={{ width: paletteWidth }}>
         <div className="flex h-[42px] shrink-0 items-center border-b border-border-default px-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">
             Symbols
@@ -81,6 +121,12 @@ export default function LatexTool() {
         </div>
         <SymbolPalette onInsert={handleInsert} />
       </div>
+
+      {/* Drag divider */}
+      <div
+        onMouseDown={handleDividerMouseDown}
+        className="group relative flex w-1 shrink-0 cursor-col-resize items-center justify-center bg-border-default transition-colors hover:bg-accent"
+      />
 
       {/* Right: Editor + Preview + Copy blocks */}
       <div className="flex flex-1 flex-col overflow-hidden">
