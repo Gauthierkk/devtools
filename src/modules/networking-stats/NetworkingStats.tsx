@@ -1,7 +1,7 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useNetworkStatsStore } from "./store";
 import { fetchSnapshot } from "./commands";
-import type { NetworkSnapshot, InterfaceInfo } from "./commands";
+import type { InterfaceInfo } from "./commands";
 import AreaChart from "./components/AreaChart";
 
 const POLL_MS = 500;
@@ -36,7 +36,7 @@ const STATUS_COLORS: Record<string, string> = {
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export default function NetworkingStats() {
-  const { snapshots, rates, error, pushSnapshot, setError, reset } =
+  const { latest, rates, error, pushSnapshot, setError, reset } =
     useNetworkStatsStore();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -59,8 +59,20 @@ export default function NetworkingStats() {
     };
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const latest: NetworkSnapshot | null =
-    snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+  // Single pass over rates instead of four .map() calls per poll tick
+  const chartSeries = useMemo(() => {
+    const bytesRecv: number[] = [];
+    const bytesSent: number[] = [];
+    const packetsRecv: number[] = [];
+    const packetsSent: number[] = [];
+    for (const r of rates) {
+      bytesRecv.push(r.bytesRecvPerSec);
+      bytesSent.push(r.bytesSentPerSec);
+      packetsRecv.push(r.packetsRecvPerSec);
+      packetsSent.push(r.packetsSentPerSec);
+    }
+    return { bytesRecv, bytesSent, packetsRecv, packetsSent };
+  }, [rates]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -105,8 +117,8 @@ export default function NetworkingStats() {
           <div className="mx-auto flex max-w-4xl flex-col gap-4">
             {/* Bandwidth chart */}
             <AreaChart
-              data={rates.map((r) => r.bytesRecvPerSec)}
-              secondaryData={rates.map((r) => r.bytesSentPerSec)}
+              data={chartSeries.bytesRecv}
+              secondaryData={chartSeries.bytesSent}
               color={COLOR_RECV}
               secondaryColor={COLOR_SENT}
               label="Download"
@@ -117,14 +129,14 @@ export default function NetworkingStats() {
 
             {/* Packets chart */}
             <AreaChart
-              data={rates.map((r) => r.packetsRecvPerSec)}
-              secondaryData={rates.map((r) => r.packetsSentPerSec)}
+              data={chartSeries.packetsRecv}
+              secondaryData={chartSeries.packetsSent}
               color={COLOR_RECV}
               secondaryColor={COLOR_SENT}
               label="Packets In"
               secondaryLabel="Packets Out"
               unit=" pkt/s"
-              formatValue={(v) => formatNum(v)}
+              formatValue={formatNum}
               height={140}
               pollMs={POLL_MS}
             />

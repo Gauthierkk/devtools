@@ -43,6 +43,34 @@ function buildArcPath(startDeg: number, endDeg: number, clockwise: boolean) {
 
 const BACKGROUND_ARC = buildArcPath(START_ANGLE, END_ANGLE, true);
 
+// Tick geometry is static — render it once at module level instead of
+// recomputing the trig on every gauge update during a running test
+const SCALE_TICKS = SPEED_SCALE.map((val, i) => {
+  const t = i / (SPEED_SCALE.length - 1);
+  const angle = START_ANGLE + t * ARC_DEGREES;
+  const inner = polarToCartesian(CX, CY, R - 10, angle);
+  const outer = polarToCartesian(CX, CY, R + 3, angle);
+  const labelPos = polarToCartesian(CX, CY, R + 16, angle);
+  return (
+    <g key={val}>
+      <line
+        x1={inner.x.toFixed(2)} y1={inner.y.toFixed(2)}
+        x2={outer.x.toFixed(2)} y2={outer.y.toFixed(2)}
+        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+        className="text-bg-surface-active"
+      />
+      <text
+        x={labelPos.x.toFixed(2)} y={labelPos.y.toFixed(2)}
+        textAnchor="middle" dominantBaseline="middle"
+        fontSize="5.5" fill="currentColor"
+        className="text-text-tertiary"
+      >
+        {val}
+      </text>
+    </g>
+  );
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatBytes(bytes: number): string {
   if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
@@ -75,31 +103,7 @@ function Gauge({ percentage, color }: GaugeProps) {
       />
 
       {/* Scale ticks + labels — drawn before arc so arc paints over the ticks */}
-      {SPEED_SCALE.map((val, i) => {
-        const t = i / (SPEED_SCALE.length - 1);
-        const angle = START_ANGLE + t * ARC_DEGREES;
-        const inner = polarToCartesian(CX, CY, R - 10, angle);
-        const outer = polarToCartesian(CX, CY, R + 3, angle);
-        const labelPos = polarToCartesian(CX, CY, R + 16, angle);
-        return (
-          <g key={val}>
-            <line
-              x1={inner.x.toFixed(2)} y1={inner.y.toFixed(2)}
-              x2={outer.x.toFixed(2)} y2={outer.y.toFixed(2)}
-              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
-              className="text-bg-surface-active"
-            />
-            <text
-              x={labelPos.x.toFixed(2)} y={labelPos.y.toFixed(2)}
-              textAnchor="middle" dominantBaseline="middle"
-              fontSize="5.5" fill="currentColor"
-              className="text-text-tertiary"
-            >
-              {val}
-            </text>
-          </g>
-        );
-      })}
+      {SCALE_TICKS}
 
       {/* Value fill — rendered last so it paints over the tick lines */}
       <path

@@ -1,6 +1,7 @@
 """Speed test — measures network latency, download speed, and upload speed."""
 
 import concurrent.futures
+import functools
 import json
 import os
 import socket
@@ -8,6 +9,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 
 import urllib3
 
@@ -42,8 +44,9 @@ def _clear_progress(phase: str) -> None:
         _current_progress.pop(phase, None)
 
 
+@functools.lru_cache(maxsize=1)
 def _load_servers() -> list[dict]:
-    """Load server definitions from servers.json."""
+    """Load server definitions from servers.json (cached — static at runtime)."""
     with open(_SERVERS_FILE, "r") as f:
         data = json.load(f)
     return data["servers"]
@@ -76,8 +79,6 @@ def list_servers() -> dict:
 
 def _extract_host(url: str) -> str:
     """Extract hostname from a URL."""
-    from urllib.parse import urlparse
-
     return urlparse(url).hostname or ""
 
 

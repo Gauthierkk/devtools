@@ -40,7 +40,11 @@ function CopyBlock({ label, content }: { label: string; content: string }) {
 }
 
 export default function LatexTool() {
-  const { latex, setLatex, clearLatex } = useLatexToolStore();
+  // Selectors: the store also holds palette state (open/enabled categories),
+  // which shouldn't re-render the editor + preview when it changes
+  const latex = useLatexToolStore((s) => s.latex);
+  const setLatex = useLatexToolStore((s) => s.setLatex);
+  const clearLatex = useLatexToolStore((s) => s.clearLatex);
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -83,15 +87,18 @@ export default function LatexTool() {
     document.addEventListener("mouseup", onMouseUp);
   }, [paletteWidth]);
 
-  // Insert symbol at cursor position, place cursor inside first {} if present
+  // Insert symbol at cursor position, place cursor inside first {} if present.
+  // Reads latex via getState() so the callback stays stable across keystrokes —
+  // a changing identity would re-render every memoized symbol button
   const handleInsert = useCallback(
     (command: string) => {
       const ta = editorRef.current;
       if (!ta) return;
 
+      const current = useLatexToolStore.getState().latex;
       const start = ta.selectionStart;
       const end = ta.selectionEnd;
-      const newLatex = latex.slice(0, start) + command + latex.slice(end);
+      const newLatex = current.slice(0, start) + command + current.slice(end);
       setLatex(newLatex);
 
       // Determine where to place cursor after insertion
@@ -104,7 +111,7 @@ export default function LatexTool() {
         ta.setSelectionRange(cursorOffset, cursorOffset);
       });
     },
-    [latex, setLatex],
+    [setLatex],
   );
 
   const inlineLatex = `$${latex}$`;

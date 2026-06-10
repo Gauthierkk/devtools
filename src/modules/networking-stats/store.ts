@@ -11,7 +11,9 @@ export interface RatePoint {
 }
 
 interface NetworkStatsState {
-  snapshots: NetworkSnapshot[];
+  // Only the latest snapshot is ever displayed; keeping full history would
+  // hold hundreds of interface/connection tables in memory for nothing
+  latest: NetworkSnapshot | null;
   rates: RatePoint[];
   error: string | null;
 
@@ -21,19 +23,16 @@ interface NetworkStatsState {
 }
 
 export const useNetworkStatsStore = create<NetworkStatsState>((set) => ({
-  snapshots: [],
+  latest: null,
   rates: [],
   error: null,
 
   pushSnapshot: (snap) =>
     set((state) => {
-      const prev = state.snapshots;
-      const next = [...prev, snap].slice(-(MAX_HISTORY + 1));
-
-      // Compute rate from last two snapshots
+      // Compute rate from the previous snapshot
       const rates = [...state.rates];
-      if (prev.length > 0) {
-        const last = prev[prev.length - 1];
+      const last = state.latest;
+      if (last) {
         const dt = snap.timestamp - last.timestamp;
         if (dt > 0) {
           rates.push({
@@ -50,12 +49,12 @@ export const useNetworkStatsStore = create<NetworkStatsState>((set) => ({
       }
 
       return {
-        snapshots: next,
+        latest: snap,
         rates: rates.slice(-MAX_HISTORY),
         error: null,
       };
     }),
 
   setError: (err) => set({ error: err }),
-  reset: () => set({ snapshots: [], rates: [], error: null }),
+  reset: () => set({ latest: null, rates: [], error: null }),
 }));

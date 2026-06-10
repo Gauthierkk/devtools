@@ -5,42 +5,37 @@ import Icon from "../../../components/ui/Icon";
 // ---------------------------------------------------------------------------
 // Line map: maps "dot.separated.path" → 1-indexed line in the formatted JSON
 // ---------------------------------------------------------------------------
-function buildLineMap(content: string): Map<string, number> {
+function buildLineMap(parsed: unknown): Map<string, number> {
   const result = new Map<string, number>();
-  try {
-    const parsed = JSON.parse(content);
-    const formatted = JSON.stringify(parsed, null, 2);
-    const lines = formatted.split("\n");
-    // stack entries: [key, depth]
-    const stack: Array<[string, number]> = [];
+  const formatted = JSON.stringify(parsed, null, 2);
+  const lines = formatted.split("\n");
+  // stack entries: [key, depth]
+  const stack: Array<[string, number]> = [];
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const depth = Math.floor((line.match(/^(\s*)/)?.[1].length ?? 0) / 2);
-      const trimmed = line.trim();
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const depth = Math.floor((line.match(/^(\s*)/)?.[1].length ?? 0) / 2);
+    const trimmed = line.trim();
 
-      // Only match lines that have a "key": pattern
-      const m = trimmed.match(/^"((?:[^"\\]|\\.)*)"\s*:/);
-      if (!m) continue;
+    // Only match lines that have a "key": pattern
+    const m = trimmed.match(/^"((?:[^"\\]|\\.)*)"\s*:/);
+    if (!m) continue;
 
-      const key = m[1];
+    const key = m[1];
 
-      // Pop stack entries at the same depth or deeper (we've left that scope)
-      while (stack.length > 0 && stack[stack.length - 1][1] >= depth) {
-        stack.pop();
-      }
-
-      const path = [...stack.map(([k]) => k), key].join(".");
-      result.set(path, i + 1);
-
-      // If the value opens a container, push so children inherit this path
-      const rest = trimmed.slice(m[0].length).trim().replace(/,$/, "").trim();
-      if (rest === "{" || rest === "[") {
-        stack.push([key, depth]);
-      }
+    // Pop stack entries at the same depth or deeper (we've left that scope)
+    while (stack.length > 0 && stack[stack.length - 1][1] >= depth) {
+      stack.pop();
     }
-  } catch {
-    // Invalid JSON — return empty map
+
+    const path = [...stack.map(([k]) => k), key].join(".");
+    result.set(path, i + 1);
+
+    // If the value opens a container, push so children inherit this path
+    const rest = trimmed.slice(m[0].length).trim().replace(/,$/, "").trim();
+    if (rest === "{" || rest === "[") {
+      stack.push([key, depth]);
+    }
   }
   return result;
 }
@@ -327,8 +322,8 @@ export default function TreeView({
 
   const { parsed, lineMap } = useMemo(() => {
     try {
-      const data = JSON.parse(content);
-      return { parsed: data, lineMap: buildLineMap(content) };
+      const data: unknown = JSON.parse(content);
+      return { parsed: data, lineMap: buildLineMap(data) };
     } catch {
       return { parsed: null, lineMap: new Map<string, number>() };
     }

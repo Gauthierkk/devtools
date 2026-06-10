@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, memo } from "react";
 import { useJsonToolStore } from "../store";
 import { extractErrorPosition } from "../commands";
 
@@ -44,7 +44,10 @@ export default function Editor() {
   return (
     <div className="relative h-full w-full overflow-hidden bg-[var(--editor-bg)]">
       <div className="flex h-full">
-        <LineNumbers content={content} errorLine={validationError?.line ?? 0} />
+        <LineNumbers
+          lineCount={countLines(content)}
+          errorLine={validationError?.line ?? 0}
+        />
         <textarea
           ref={textareaRef}
           value={content}
@@ -59,18 +62,27 @@ export default function Editor() {
   );
 }
 
-function LineNumbers({
-  content,
+// Count newlines without allocating an array of every line
+function countLines(content: string): number {
+  let count = 1;
+  for (let i = content.indexOf("\n"); i !== -1; i = content.indexOf("\n", i + 1)) {
+    count++;
+  }
+  return count;
+}
+
+// Memoized on primitives: the gutter only re-renders when the line count or
+// error line changes, not on every keystroke
+const LineNumbers = memo(function LineNumbers({
+  lineCount,
   errorLine,
 }: {
-  content: string;
+  lineCount: number;
   errorLine: number;
 }) {
-  const lines = content.split("\n").length;
-
   return (
     <div className="flex flex-col bg-[var(--editor-gutter)] py-3 px-3 text-right font-mono text-[13px] leading-5 select-none">
-      {Array.from({ length: lines }, (_, i) => {
+      {Array.from({ length: lineCount }, (_, i) => {
         const lineNum = i + 1;
         const isError = errorLine > 0 && lineNum === errorLine;
         return (
@@ -85,4 +97,4 @@ function LineNumbers({
       })}
     </div>
   );
-}
+});

@@ -6,66 +6,58 @@ import Editor from "./components/Editor";
 import TreeView from "./components/TreeView";
 
 export default function JsonTool() {
-  const {
-    content,
-    filePath,
-    viewMode,
-    setContent,
-    setFilePath,
-    setValidationError,
-    markClean,
-  } = useJsonToolStore();
+  const viewMode = useJsonToolStore((s) => s.viewMode);
 
-  // Keyboard shortcuts
-  const handleKeyDown = useCallback(
-    async (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
+  // Keyboard shortcuts — reads state via getState() so the window listener
+  // stays stable instead of being re-attached on every keystroke
+  const handleKeyDown = useCallback(async (e: KeyboardEvent) => {
+    const mod = e.metaKey || e.ctrlKey;
+    const { content, filePath, setContent, setFilePath, setValidationError, markClean } =
+      useJsonToolStore.getState();
 
-      if (mod && e.key === "o") {
-        e.preventDefault();
-        try {
-          const result = await openJsonFile();
-          if (result) {
-            setContent(result.content);
-            setFilePath(result.path);
-            markClean();
-            setValidationError(null);
-          }
-        } catch (err) {
-          console.error("Failed to open file:", err);
-        }
-      }
-
-      if (mod && e.key === "s") {
-        e.preventDefault();
-        try {
-          const path = await saveJsonFile(content, filePath);
-          if (path) {
-            setFilePath(path);
-            markClean();
-          }
-        } catch (err) {
-          console.error("Failed to save file:", err);
-        }
-      }
-
-      if (mod && e.shiftKey && e.key === "f") {
-        e.preventDefault();
-        try {
-          const formatted = formatJson(content);
-          setContent(formatted);
+    if (mod && e.key === "o") {
+      e.preventDefault();
+      try {
+        const result = await openJsonFile();
+        if (result) {
+          setContent(result.content);
+          setFilePath(result.path);
+          markClean();
           setValidationError(null);
-        } catch (err) {
-          setValidationError({
-            message: (err as Error).message,
-            line: 0,
-            column: 0,
-          });
         }
+      } catch (err) {
+        console.error("Failed to open file:", err);
       }
-    },
-    [content, filePath, setContent, setFilePath, setValidationError, markClean],
-  );
+    }
+
+    if (mod && e.key === "s") {
+      e.preventDefault();
+      try {
+        const path = await saveJsonFile(content, filePath);
+        if (path) {
+          setFilePath(path);
+          markClean();
+        }
+      } catch (err) {
+        console.error("Failed to save file:", err);
+      }
+    }
+
+    if (mod && e.shiftKey && e.key === "f") {
+      e.preventDefault();
+      try {
+        const formatted = formatJson(content);
+        setContent(formatted);
+        setValidationError(null);
+      } catch (err) {
+        setValidationError({
+          message: (err as Error).message,
+          line: 0,
+          column: 0,
+        });
+      }
+    }
+  }, []);
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
@@ -73,29 +65,28 @@ export default function JsonTool() {
   }, [handleKeyDown]);
 
   // Drag and drop
-  const handleDrop = useCallback(
-    async (e: DragEvent) => {
-      e.preventDefault();
-      const file = e.dataTransfer?.files[0];
-      if (file) {
-        const text = await file.text();
-        setContent(text);
-        setFilePath(null);
-        markClean();
-        try {
-          JSON.parse(text);
-          setValidationError(null);
-        } catch (err) {
-          setValidationError({
-            message: (err as Error).message,
-            line: 0,
-            column: 0,
-          });
-        }
+  const handleDrop = useCallback(async (e: DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files[0];
+    if (file) {
+      const { setContent, setFilePath, setValidationError, markClean } =
+        useJsonToolStore.getState();
+      const text = await file.text();
+      setContent(text);
+      setFilePath(null);
+      markClean();
+      try {
+        JSON.parse(text);
+        setValidationError(null);
+      } catch (err) {
+        setValidationError({
+          message: (err as Error).message,
+          line: 0,
+          column: 0,
+        });
       }
-    },
-    [setContent, setFilePath, setValidationError, markClean],
-  );
+    }
+  }, []);
 
   const handleDragOver = useCallback((e: DragEvent) => {
     e.preventDefault();
