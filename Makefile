@@ -1,4 +1,4 @@
-.PHONY: dev app
+.PHONY: dev app release
 
 # Launch frontend in browser at http://localhost:1420
 dev:
@@ -10,3 +10,8 @@ dev:
 # Build the macOS .app and .dmg (debug mode)
 app:
 	npx tauri build --debug
+
+# Build release and create a GitHub release (tag first: git tag v0.1.0 && git push --tags)
+release:
+	npx tauri build
+	@echo "✅ Release build complete. DMG at src-tauri/target/release/bundle/dmg/"
