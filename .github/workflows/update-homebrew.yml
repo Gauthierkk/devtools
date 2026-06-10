@@ -4,24 +4,27 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.1); defaults to latest release"
+        required: false
 
 jobs:
   update-cask:
-    runs-on: macOS-latest
+    runs-on: macos-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Get release info
         id: release
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ github.event_name }}" = "release" ]; then
             TAG="${{ github.event.release.tag_name }}"
           elif [ -n "${{ github.event.inputs.tag }}" ]; then
             TAG="${{ github.event.inputs.tag }}"
           else
-            TAG=$(curl -sL -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest" | python -c 'import sys,json; print(json.load(sys.stdin)["tag_name"])')
+            TAG=$(gh release view --repo ${{ github.repository }} --json tagName -q .tagName)
           fi
           VERSION="${TAG#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -30,19 +33,11 @@ jobs:
       - name: Get DMG asset name
         id: asset
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          RELEASE_JSON=$(curl -sL -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG")
-          ASSET=$(python - <<'PY'
-import sys,json
-obj=json.load(sys.stdin)
-assets=obj.get('assets', [])
-for a in assets:
-    if a.get('name', '').endswith('.dmg'):
-        print(a['name'])
-        sys.exit(0)
-sys.exit(1)
-PY
-<<<"$RELEASE_JSON")
+          TAG="${{ steps.release.outputs.tag }}"
+          ASSET=$(gh release view "$TAG" --repo ${{ github.repository }} --json releaseAssets -q '.releaseAssets[] | select(.name | endswith(".dmg")) | .name' | head -n 1)
           if [ -z "$ASSET" ]; then
             echo "No DMG asset found for release $TAG" >&2
             exit 1
@@ -54,7 +49,7 @@ PY
         shell: bash
         run: |
           URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.release.outputs.tag }}/${{ steps.asset.outputs.asset }}"
-          SHA=$(curl -L "$URL" | shasum -a 256 | awk '{print $1}')
+          SHA=$(curl -sL --fail "$URL" | shasum -a 256 | awk '{print $1}')
           echo "url=$URL" >> "$GITHUB_OUTPUT"
           echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
 
