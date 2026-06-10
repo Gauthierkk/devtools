@@ -37,7 +37,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.release.outputs.tag }}"
-          ASSET=$(gh release view "$TAG" --repo ${{ github.repository }} --json releaseAssets -q '.releaseAssets[] | select(.name | endswith(".dmg")) | .name' | head -n 1)
+          ASSET=$(gh release view "$TAG" --repo ${{ github.repository }} --json assets -q '.assets[] | select(.name | endswith(".dmg")) | .name' | head -n 1)
           if [ -z "$ASSET" ]; then
             echo "No DMG asset found for release $TAG" >&2
             exit 1
