@@ -8,6 +8,9 @@ import psutil
 
 from rpc import RpcServer
 
+# Compiled once instead of per lsof output line
+_ADDR_PORT_RE = re.compile(r"(.+):(\d+)")
+
 
 def register(server: RpcServer):
     server.add("port_monitor.get_ports", get_ports)
@@ -60,7 +63,7 @@ def _parse_lsof(output: str) -> list[dict]:
         pid = int(parts[1])
         if parts[7] != "TCP":
             continue
-        m = re.match(r"(.+):(\d+)", parts[8].split("->")[0].strip())
+        m = _ADDR_PORT_RE.match(parts[8].split("->")[0].strip())
         if not m:
             continue
         address, port = m.group(1), int(m.group(2))

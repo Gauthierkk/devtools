@@ -29,6 +29,7 @@ def register(server: RpcServer):
 
 # ─── Crontab I/O ──────────────────────────────────────────────────────────────
 
+
 def _read_crontab() -> str:
     result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
     return result.stdout if result.returncode == 0 else ""
@@ -49,6 +50,7 @@ def _write_crontab(content: str) -> None:
 
 # ─── Parsing ──────────────────────────────────────────────────────────────────
 
+
 def _parse_cron_line(line: str) -> tuple[str, str] | None:
     """Extract (cronExpression, command) from a standard 5-field cron line."""
     m = re.match(r"^(\S+\s+\S+\s+\S+\s+\S+\s+\S+)\s+(.+)$", line.strip())
@@ -63,7 +65,7 @@ def _parse_crontab(content: str) -> list[dict]:
         line = lines[i]
         if line.startswith(MARKER_PREFIX):
             # Managed job — format: # devtools:<uuid> <name>
-            rest = line[len(MARKER_PREFIX):]
+            rest = line[len(MARKER_PREFIX) :]
             parts = rest.split(" ", 1)
             job_id = parts[0].strip()
             name = parts[1].strip() if len(parts) > 1 else ""
@@ -73,31 +75,35 @@ def _parse_crontab(content: str) -> list[dict]:
                 is_enabled = True
                 if next_line.startswith(DISABLE_PREFIX):
                     is_enabled = False
-                    next_line = next_line[len(DISABLE_PREFIX):]
+                    next_line = next_line[len(DISABLE_PREFIX) :]
                 parsed = _parse_cron_line(next_line)
                 if parsed:
                     cron_expr, command = parsed
-                    jobs.append({
-                        "id": job_id,
-                        "name": name,
-                        "cronExpression": cron_expr,
-                        "command": command,
-                        "isEnabled": is_enabled,
-                        "source": "devtools",
-                    })
+                    jobs.append(
+                        {
+                            "id": job_id,
+                            "name": name,
+                            "cronExpression": cron_expr,
+                            "command": command,
+                            "isEnabled": is_enabled,
+                            "source": "devtools",
+                        }
+                    )
         elif line.strip() and not line.startswith("#"):
             # External job not managed by devtools
             parsed = _parse_cron_line(line)
             if parsed:
                 cron_expr, command = parsed
-                jobs.append({
-                    "id": f"ext-{abs(hash(line))}",
-                    "name": "",
-                    "cronExpression": cron_expr,
-                    "command": command,
-                    "isEnabled": True,
-                    "source": "external",
-                })
+                jobs.append(
+                    {
+                        "id": f"ext-{abs(hash(line))}",
+                        "name": "",
+                        "cronExpression": cron_expr,
+                        "command": command,
+                        "isEnabled": True,
+                        "source": "external",
+                    }
+                )
         i += 1
     return jobs
 
@@ -135,6 +141,7 @@ def _build_crontab(devtools_jobs: list[dict], original_content: str) -> str:
 
 # ─── RPC handlers ─────────────────────────────────────────────────────────────
 
+
 def get_jobs() -> dict:
     return {"jobs": _parse_crontab(_read_crontab())}
 
@@ -155,7 +162,9 @@ def add_job(name: str, cronExpression: str, command: str) -> dict:
     return {"job": new_job}
 
 
-def update_job(id: str, name: str | None = None, cronExpression: str | None = None, command: str | None = None) -> dict:
+def update_job(
+    id: str, name: str | None = None, cronExpression: str | None = None, command: str | None = None
+) -> dict:
     content = _read_crontab()
     devtools_jobs = [j for j in _parse_crontab(content) if j["source"] == "devtools"]
     target = next((j for j in devtools_jobs if j["id"] == id), None)
@@ -173,7 +182,9 @@ def update_job(id: str, name: str | None = None, cronExpression: str | None = No
 
 def delete_job(id: str) -> dict:
     content = _read_crontab()
-    devtools_jobs = [j for j in _parse_crontab(content) if j["source"] == "devtools" and j["id"] != id]
+    devtools_jobs = [
+        j for j in _parse_crontab(content) if j["source"] == "devtools" and j["id"] != id
+    ]
     _write_crontab(_build_crontab(devtools_jobs, content))
     return {"ok": True}
 
@@ -197,8 +208,10 @@ def run_now(id: str) -> dict:
         raise Exception(f"Job {id} not found")
 
     run_id = str(uuid.uuid4())
+    # Output is buffered as a list of chunks: appending to a string per line
+    # is O(n²) for long-running jobs with lots of output
     with _runs_lock:
-        _runs[run_id] = {"output": "", "done": False, "exit_code": None}
+        _runs[run_id] = {"chunks": [], "done": False, "exit_code": None}
 
     def _execute():
         shell = os.environ.get("SHELL", "/bin/sh")
@@ -211,14 +224,14 @@ def run_now(id: str) -> dict:
             )
             for line in proc.stdout or []:
                 with _runs_lock:
-                    _runs[run_id]["output"] += line
+                    _runs[run_id]["chunks"].append(line)
             proc.wait()
             with _runs_lock:
                 _runs[run_id]["done"] = True
                 _runs[run_id]["exit_code"] = proc.returncode
         except Exception as e:
             with _runs_lock:
-                _runs[run_id]["output"] += f"Error: {e}\n"
+                _runs[run_id]["chunks"].append(f"Error: {e}\n")
                 _runs[run_id]["done"] = True
                 _runs[run_id]["exit_code"] = 1
 
@@ -229,9 +242,13 @@ def run_now(id: str) -> dict:
 def get_run_output(run_id: str) -> dict:
     with _runs_lock:
         run = _runs.get(run_id)
-    if not run:
-        raise Exception(f"Run {run_id} not found")
-    return {"output": run["output"], "done": run["done"], "exit_code": run["exit_code"]}
+        if not run:
+            raise Exception(f"Run {run_id} not found")
+        return {
+            "output": "".join(run["chunks"]),
+            "done": run["done"],
+            "exit_code": run["exit_code"],
+        }
 
 
 def validate_expression(expression: str) -> dict:
@@ -254,7 +271,10 @@ def validate_expression(expression: str) -> dict:
                 try:
                     n = int(v)
                     if not (lo <= n <= hi):
-                        return {"valid": False, "error": f"{fname} value {n} out of range {lo}–{hi}"}
+                        return {
+                            "valid": False,
+                            "error": f"{fname} value {n} out of range {lo}–{hi}",
+                        }
                 except ValueError:
                     return {"valid": False, "error": f"Invalid {fname} value: {v!r}"}
 

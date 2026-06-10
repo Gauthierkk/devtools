@@ -4,23 +4,34 @@ import { SYMBOL_CATEGORIES, type LatexSymbol, type SymbolCategory } from "../lat
 import { useLatexToolStore } from "../store";
 import Icon from "../../../components/ui/Icon";
 
+// Module-level cache: KaTeX rendering is expensive and symbol HTML never
+// changes, so collapse/expand or remounting the palette reuses prior renders
+const katexHtmlCache = new Map<string, string>();
+
+function renderSymbolHtml(display: string): string {
+  let html = katexHtmlCache.get(display);
+  if (html === undefined) {
+    try {
+      html = katex.renderToString(display, {
+        throwOnError: false,
+        displayMode: false,
+        output: "html",
+      });
+    } catch {
+      html = `<span>${display}</span>`;
+    }
+    katexHtmlCache.set(display, html);
+  }
+  return html;
+}
+
 interface SymbolButtonProps {
   symbol: LatexSymbol;
   onInsert: (command: string) => void;
 }
 
 const SymbolButton = memo(function SymbolButton({ symbol, onInsert }: SymbolButtonProps) {
-  const html = useMemo(() => {
-    try {
-      return katex.renderToString(symbol.display, {
-        throwOnError: false,
-        displayMode: false,
-        output: "html",
-      });
-    } catch {
-      return `<span>${symbol.display}</span>`;
-    }
-  }, [symbol.display]);
+  const html = renderSymbolHtml(symbol.display);
 
   return (
     <button
@@ -66,10 +77,25 @@ interface SymbolPaletteProps {
 const DRAG_THRESHOLD = 4;
 
 export default function SymbolPalette({ onInsert }: SymbolPaletteProps) {
-  const { openCategories, toggleCategory, collapseAllCategories, expandAllCategories, enabledCategories, toggleEnabledCategory, categoryOrder, setCategoryOrder } =
-    useLatexToolStore();
-  const allOrderedCategories = getOrderedCategories(SYMBOL_CATEGORIES, categoryOrder);
-  const orderedCategories = allOrderedCategories.filter((c) => enabledCategories.has(c.id));
+  // Individual selectors: subscribing to the whole store would re-render the
+  // palette (hundreds of KaTeX buttons) on every editor keystroke
+  const openCategories = useLatexToolStore((s) => s.openCategories);
+  const toggleCategory = useLatexToolStore((s) => s.toggleCategory);
+  const collapseAllCategories = useLatexToolStore((s) => s.collapseAllCategories);
+  const expandAllCategories = useLatexToolStore((s) => s.expandAllCategories);
+  const enabledCategories = useLatexToolStore((s) => s.enabledCategories);
+  const toggleEnabledCategory = useLatexToolStore((s) => s.toggleEnabledCategory);
+  const categoryOrder = useLatexToolStore((s) => s.categoryOrder);
+  const setCategoryOrder = useLatexToolStore((s) => s.setCategoryOrder);
+
+  const allOrderedCategories = useMemo(
+    () => getOrderedCategories(SYMBOL_CATEGORIES, categoryOrder),
+    [categoryOrder],
+  );
+  const orderedCategories = useMemo(
+    () => allOrderedCategories.filter((c) => enabledCategories.has(c.id)),
+    [allOrderedCategories, enabledCategories],
+  );
 
   const [showFilter, setShowFilter] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);

@@ -1,10 +1,19 @@
 """Networking stats handlers — live system network metrics via psutil."""
 
+import socket
 import time
 
 import psutil
 
 from rpc import RpcServer
+
+# Address family names, built once — this handler is polled twice a second
+_FAMILY_NAMES: dict[int, str] = {
+    socket.AF_INET: "IPv4",
+    socket.AF_INET6: "IPv6",
+}
+if hasattr(socket, "AF_LINK"):
+    _FAMILY_NAMES[socket.AF_LINK] = "MAC"
 
 
 def register(server: RpcServer):
@@ -75,12 +84,4 @@ def get_snapshot() -> dict:
 
 def _family_name(family: int) -> str:
     """Convert socket address family int to human-readable string."""
-    import socket
-
-    mapping = {
-        socket.AF_INET: "IPv4",
-        socket.AF_INET6: "IPv6",
-    }
-    if hasattr(socket, "AF_LINK"):
-        mapping[socket.AF_LINK] = "MAC"
-    return mapping.get(family, str(family))
+    return _FAMILY_NAMES.get(family, str(family))

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useMemo } from "react";
 import type { MatchResult } from "../store";
 
 const MATCH_COLORS = [
@@ -37,12 +37,12 @@ export default function MatchHighlighter({
     return () => ta.removeEventListener("scroll", syncScroll);
   }, [syncScroll]);
 
-  function buildHighlightedSegments() {
+  const segments = useMemo(() => {
     if (matches.length === 0) {
       return [{ text: testString, highlight: false, colorIndex: 0 }];
     }
 
-    const segments: {
+    const result: {
       text: string;
       highlight: boolean;
       colorIndex: number;
@@ -52,13 +52,13 @@ export default function MatchHighlighter({
     for (let i = 0; i < matches.length; i++) {
       const m = matches[i];
       if (m.start > lastEnd) {
-        segments.push({
+        result.push({
           text: testString.slice(lastEnd, m.start),
           highlight: false,
           colorIndex: 0,
         });
       }
-      segments.push({
+      result.push({
         text: testString.slice(m.start, m.end),
         highlight: true,
         colorIndex: i % MATCH_COLORS.length,
@@ -67,17 +67,15 @@ export default function MatchHighlighter({
     }
 
     if (lastEnd < testString.length) {
-      segments.push({
+      result.push({
         text: testString.slice(lastEnd),
         highlight: false,
         colorIndex: 0,
       });
     }
 
-    return segments;
-  }
-
-  const segments = buildHighlightedSegments();
+    return result;
+  }, [testString, matches]);
 
   return (
     <div className="relative flex-1 overflow-hidden">

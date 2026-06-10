@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getModules, type ToolModule } from "../../lib/module-registry";
 import { useSidebarStore } from "../../stores/sidebar-store";
@@ -102,7 +102,11 @@ function getOrderedModules(
 export default function Sidebar() {
   const allModules = getModules();
   const { moduleOrder, setModuleOrder } = useSidebarStore();
-  const orderedModules = getOrderedModules(allModules, moduleOrder);
+  // Stable identity keeps the hotkey effect below from re-attaching each render
+  const orderedModules = useMemo(
+    () => getOrderedModules(allModules, moduleOrder),
+    [allModules, moduleOrder],
+  );
 
   const location = useLocation();
   const navigate = useNavigate();

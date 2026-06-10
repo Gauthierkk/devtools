@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSpeedTestStore } from "./store";
 import {
   listServers,
@@ -16,26 +16,22 @@ const COLOR_UPLOAD = "hsl(250, 70%, 65%)";     // purple
 const CONNECTIVITY_CHECK_INTERVAL = 5_000; // 5 seconds
 const PROGRESS_POLL_MS = 500;
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
-function DownloadIcon() {
-  return (
-    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  );
-}
+// ─── Icons (static — hoisted so they aren't recreated each render) ───────────
+const DOWNLOAD_ICON = (
+  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
 
-function UploadIcon() {
-  return (
-    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
-  );
-}
+const UPLOAD_ICON = (
+  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" y1="3" x2="12" y2="15" />
+  </svg>
+);
 
 // ─── Connectivity hook ────────────────────────────────────────────────────────
 function useConnectivityCheck() {
@@ -110,6 +106,17 @@ export default function SpeedTest() {
   }, [setServers]);
 
   const selectedServer = servers.find((s) => s.id === selectedServerId) ?? null;
+
+  // Group servers by continent once per server-list change, not per render
+  const serversByContinent = useMemo(() => {
+    const grouped = new Map<string, typeof servers>();
+    for (const s of servers) {
+      const continent = s.continent || "Other";
+      if (!grouped.has(continent)) grouped.set(continent, []);
+      grouped.get(continent)!.push(s);
+    }
+    return Array.from(grouped.entries());
+  }, [servers]);
 
   const runTests = useCallback(async () => {
     reset();
@@ -249,7 +256,7 @@ export default function SpeedTest() {
         <div className="grid grid-cols-2 gap-4" style={{ width: "clamp(360px, 90vw, 720px)" }}>
           <MetricCard
             label="Download"
-            icon={<DownloadIcon />}
+            icon={DOWNLOAD_ICON}
             value={download.value}
             unit="Mbps"
             subtitle={download.subtitle}
@@ -266,7 +273,7 @@ export default function SpeedTest() {
           />
           <MetricCard
             label="Upload"
-            icon={<UploadIcon />}
+            icon={UPLOAD_ICON}
             value={upload.value}
             unit="Mbps"
             subtitle={upload.subtitle}
@@ -369,23 +376,15 @@ export default function SpeedTest() {
               {servers.length === 0 ? (
                 <option value="cloudflare">Cloudflare — Global CDN</option>
               ) : (
-                (() => {
-                  const grouped = new Map<string, typeof servers>();
-                  for (const s of servers) {
-                    const continent = s.continent || "Other";
-                    if (!grouped.has(continent)) grouped.set(continent, []);
-                    grouped.get(continent)!.push(s);
-                  }
-                  return Array.from(grouped.entries()).map(([continent, group]) => (
-                    <optgroup key={continent} label={continent}>
-                      {group.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} — {s.location}{s.upload_url ? "" : " (dl only)"}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ));
-                })()
+                serversByContinent.map(([continent, group]) => (
+                  <optgroup key={continent} label={continent}>
+                    {group.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} — {s.location}{s.upload_url ? "" : " (dl only)"}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))
               )}
             </select>
           </div>
