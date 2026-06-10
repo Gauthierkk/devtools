@@ -7,7 +7,9 @@ on:
 
 jobs:
   update-cask:
-    runs-on: macos-latest
+    runs-on: macOS-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
